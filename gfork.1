@@ -1,0 +1,277 @@
+.TH GFORK 1 "2026-03-01" "gfork" "User Commands"
+.
+.SH NAME
+gfork \- isolated git clone workflow for parallel and AI agent development
+.
+.SH SYNOPSIS
+.B gfork
+.I feature-name
+.RI [ branch ]
+.br
+.B gfork cd
+.I feature-name
+.br
+.B gfork rm
+.I feature-name
+.br
+.B gfork ls
+.br
+.B gfork help
+.
+.SH DESCRIPTION
+.B gfork
+creates an isolated local clone of the current git repository in a sibling
+directory.
+The clone is named
+.IB repo-name -- feature-name
+and shares git objects with the original via hardlinks, making it nearly
+instant and space-efficient regardless of repo size.
+.PP
+The clone is fully independent: branches, commits, and working-tree changes
+inside it cannot affect the original repository.
+When work is complete, push from the clone, pull in the original, then remove
+the clone with
+.B gfork rm
+or
+.BR "rm -rf" .
+.PP
+.B gfork
+is especially useful when running multiple AI coding agents in parallel
+(Claude Code, Codex, OpenCode, Pi) so each agent works in its own sandbox
+without stepping on the others.
+.
+.SH SUBCOMMANDS
+.TP
+.BI "gfork " feature-name " [" branch ]
+Create a new clone.
+.I feature-name
+becomes the suffix of the clone directory
+.RI ( repo -- feature-name ).
+.I branch
+is the branch to clone from; defaults to the current branch when omitted.
+Exits non-zero if the destination directory already exists.
+.
+.TP
+.BI "gfork cd " feature-name
+Change the current shell directory into an existing clone.
+.I feature-name
+may be the short feature name
+.RI ( auth-refactor )
+or the full directory name
+.RI ( myrepo--auth-refactor ).
+Because this subcommand changes the shell's working directory it must be
+implemented as a shell function, not a subprocess.
+All supported shells (bash, zsh, fish, nushell) handle this correctly when
+installed via the provided installer or shell-specific file.
+Exits non-zero if the clone does not exist.
+.
+.TP
+.BI "gfork rm " feature-name
+Delete an existing clone after user confirmation.
+Before prompting,
+.B gfork rm
+checks for:
+.RS
+.IP \(bu 4
+Uncommitted changes (staged or unstaged) inside the clone.
+.IP \(bu 4
+Commits that exist in the clone but have not been pushed to a remote.
+.RE
+.RS
+.PP
+If either condition is detected a warning is printed above the confirmation
+prompt.
+Answering
+.B y
+(case-insensitive) proceeds with deletion; any other input aborts.
+.I feature-name
+may be the short feature name or the full directory name.
+Exits non-zero if the clone does not exist.
+.RE
+.
+.TP
+.B gfork ls
+List all clones that belong to the current repository.
+Clones are detected by scanning the parent directory for siblings whose name
+matches the pattern
+.IB repo-name -- *.
+Each entry is printed with the
+.B gfork cd
+command needed to jump into it.
+Exits non-zero when run outside a git repository.
+.
+.TP
+.BR "gfork help" ", " "gfork --help" ", " "gfork -h"
+Print a short usage summary and exit.
+.
+.SH OPTIONS
+.B gfork
+has no standalone flags.
+All behaviour is controlled via subcommands and positional arguments.
+.
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+An error occurred (not inside a git repo, destination already exists,
+clone not found, missing required argument, etc.).
+.B gfork rm
+also exits
+.B 0
+when the user aborts at the confirmation prompt.
+.
+.SH EXAMPLES
+.SS Basic workflow
+.EX
+# Inside ~/projects/my-app (on branch main)
+gfork big-feature          # creates ~/projects/my-app--big-feature
+gfork cd big-feature       # jump in
+git checkout -b my-branch  # work freely
+git push origin my-branch
+cd ~/projects/my-app
+git pull
+gfork rm big-feature       # clean up
+.EE
+.
+.SS Clone a specific branch
+.EX
+gfork hotfix-login release/v2
+gfork cd hotfix-login
+.EE
+.
+.SS List all clones for the current repo
+.EX
+gfork ls
+#   my-app--big-feature   (gfork cd big-feature)
+#   my-app--experiment    (gfork cd experiment)
+.EE
+.
+.SS Parallel AI agents
+.EX
+gfork parallel-sprint
+gfork cd parallel-sprint
+
+CLAUDE_CODE_ALLOW_ROOT=1 claude -p "Build the auth module on branch auth" &
+CLAUDE_CODE_ALLOW_ROOT=1 claude -p "Build the API layer on branch api"   &
+wait
+
+git merge auth
+git merge api
+git push origin main
+cd ~/projects/my-app && git pull
+gfork rm parallel-sprint
+.EE
+.
+.SS Per-agent instruction file
+.EX
+gfork payment-feature
+gfork cd payment-feature
+cat > AGENTS.md << 'EOF'
+Work in an isolated clone. Create one branch per logical unit,
+merge back to main when tests pass, never push to origin.
+EOF
+claude -p "Implement Stripe billing per AGENTS.md"
+.EE
+.
+.SH INSTALLATION
+.SS Automatic (detects your shell)
+.EX
+curl -fsSL https://raw.githubusercontent.com/jax-agent/gfork/main/install.sh | bash
+.EE
+.
+.SS Manual
+.TP
+.B bash / zsh
+.EX
+curl -o ~/.gfork.sh \\
+  https://raw.githubusercontent.com/jax-agent/gfork/main/gfork.sh
+echo 'source ~/.gfork.sh' >> ~/.zshrc   # or ~/.bashrc
+.EE
+.TP
+.B fish
+.EX
+curl -o ~/.config/fish/functions/gfork.fish \\
+  https://raw.githubusercontent.com/jax-agent/gfork/main/gfork.fish
+.EE
+.TP
+.B nushell
+.EX
+curl -o ~/.config/nushell/gfork.nu \\
+  https://raw.githubusercontent.com/jax-agent/gfork/main/gfork.nu
+echo 'source ~/.config/nushell/gfork.nu' >> ~/.config/nushell/config.nu
+.EE
+.
+.SS Man page
+.EX
+sudo cp gfork.1 /usr/local/share/man/man1/
+sudo mandb
+man gfork
+.EE
+.
+.SH NOTES
+.SS Why not git worktrees?
+Git worktrees share the
+.I .git
+directory with the original repository.
+This means the same branch cannot be checked out in two places at once,
+and AI agents writing conflicting refs or index entries can corrupt the
+original repo.
+.B gfork
+uses
+.B git clone --local
+which creates a fully independent
+.I .git
+directory while still using hardlinks for git object storage, giving
+isolation without significant disk overhead.
+.
+.SS Nushell subcommand names
+Nushell does not support subcommands inside a single
+.B def
+block the same way bash/zsh/fish do.
+The nushell version therefore exposes separate top-level commands:
+.BR gfork-cd ,
+.BR gfork-rm ,
+and
+.BR gfork-ls
+instead of
+.BR "gfork cd" ,
+.BR "gfork rm" ,
+and
+.BR "gfork ls" .
+.
+.SH SHELL SUPPORT
+.TS
+l l.
+bash	gfork.sh
+zsh	gfork.sh
+fish	gfork.fish
+nushell	gfork.nu
+.TE
+.
+.SH FILES
+.TP
+.I ~/.gfork.sh
+Default install location for bash/zsh.
+.TP
+.I ~/.config/fish/functions/gfork.fish
+Fish auto-load location.
+.TP
+.I ~/.config/nushell/gfork.nu
+Nushell source file (must be sourced from
+.IR config.nu ).
+.
+.SH BUGS
+Report bugs at: https://github.com/jax-agent/gfork/issues
+.
+.SH AUTHOR
+Jax <mrjaxemail@proton.me>
+.
+.SH LICENSE
+MIT License. See https://github.com/jax-agent/gfork for full text.
+.
+.SH SEE ALSO
+.BR git (1),
+.BR git-clone (1),
+.BR git-worktree (1)

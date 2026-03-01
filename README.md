@@ -235,6 +235,18 @@ claude -p "Implement Stripe billing per AGENTS.md"
 
 ---
 
+## Man Page
+
+A full man page is included.
+
+```bash
+sudo cp gfork.1 /usr/local/share/man/man1/
+sudo mandb
+man gfork
+```
+
+---
+
 ## License
 
 MIT — use freely, contributions welcome.
