@@ -101,6 +101,20 @@ command needed to jump into it.
 Exits non-zero when run outside a git repository.
 .
 .TP
+.BR "gfork update" ", " "gfork upgrade"
+Update gfork to the latest version from GitHub.
+Downloads the appropriate shell file for the current shell
+.RB ( gfork.sh ", " gfork.fish ", or " gfork.nu )
+and overwrites the installed copy.
+Prints the short commit SHA of the version pulled.
+Requires
+.BR curl (1)
+and an active internet connection.
+A shell reload
+.RB ( "source ~/.gfork.sh" ", " "exec fish" ", etc.")
+is needed to pick up any new subcommands added in the update.
+.
+.TP
 .BR "gfork help" ", " "gfork --help" ", " "gfork -h"
 Print a short usage summary and exit.
 .

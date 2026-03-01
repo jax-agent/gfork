@@ -16,6 +16,9 @@ function gfork --description "Isolated git clone workflow for parallel developme
         case ls list
             _gfork_ls
             return
+        case update upgrade
+            _gfork_update
+            return
         case -h --help help
             _gfork_help
             return
@@ -157,6 +160,33 @@ function _gfork_ls
     end
 end
 
+function _gfork_update
+    set base_url "https://raw.githubusercontent.com/jax-agent/gfork/main"
+    set api_url "https://api.github.com/repos/jax-agent/gfork/commits/main"
+
+    echo "⟳  Checking for updates..."
+
+    set latest_sha ""
+    if command -q curl
+        set latest_sha (curl -fsSL $api_url 2>/dev/null | grep '"sha"' | head -1 | sed 's/.*"sha": "\([^"]*\)".*/\1/' | cut -c1-7)
+    end
+
+    set dest (status fish-path | path dirname | path join functions gfork.fish)
+    if not test -f $dest
+        set dest "$HOME/.config/fish/functions/gfork.fish"
+    end
+
+    curl -fsSL "$base_url/gfork.fish" -o $dest
+    or begin; echo "✗ Update failed." >&2; return 1; end
+
+    if test -n "$latest_sha"
+        echo "✓ Updated to $latest_sha"
+    else
+        echo "✓ Updated to latest"
+    end
+    echo "  Run 'exec fish' to reload, or open a new tab."
+end
+
 function _gfork_help
     echo "gfork — isolated git clone workflow"
     echo ""
@@ -165,6 +195,7 @@ function _gfork_help
     echo "  gfork cd <feature-name>         cd into an existing clone"
     echo "  gfork rm <feature-name>         Delete a clone (with confirmation)"
     echo "  gfork ls                        List clones for this repo"
+    echo "  gfork update                    Update gfork to the latest version"
     echo ""
     echo "Examples:"
     echo "  gfork auth-refactor             Create myrepo--auth-refactor/"

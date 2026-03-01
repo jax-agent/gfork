@@ -112,6 +112,31 @@ def gfork-rm [
     print $"✓ Deleted: ($dest)"
 }
 
+# Update gfork to the latest version from GitHub
+def gfork-update [] {
+    let base_url = "https://raw.githubusercontent.com/jax-agent/gfork/main"
+    let api_url = "https://api.github.com/repos/jax-agent/gfork/commits/main"
+
+    print "⟳  Checking for updates..."
+
+    # Fetch latest SHA
+    let latest_sha = (do {
+        http get $api_url | get sha | str substring 0..6
+    } | default "")
+
+    # Find the installed nu file
+    let dest = $"($env.XDG_CONFIG_HOME? | default $"($env.HOME)/.config")/nushell/gfork.nu"
+
+    http get $"($base_url)/gfork.nu" | save --force $dest
+
+    if ($latest_sha | str length) > 0 {
+        print $"✓ Updated to ($latest_sha)"
+    } else {
+        print "✓ Updated to latest"
+    }
+    print "  Run 'exec nu' or open a new tab to reload."
+}
+
 # List all gfork clones for the current repo
 def gfork-ls [] {
     let repo_root_r = (do { git rev-parse --show-toplevel } | complete)

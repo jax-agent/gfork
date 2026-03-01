@@ -27,6 +27,10 @@ gfork() {
       _gfork_ls
       return
       ;;
+    update|upgrade)
+      _gfork_update
+      return
+      ;;
     -h|--help|help)
       _gfork_help
       return
@@ -158,6 +162,55 @@ _gfork_ls() {
   fi
 }
 
+_gfork_update() {
+  local base_url="https://raw.githubusercontent.com/jax-agent/gfork/main"
+  local api_url="https://api.github.com/repos/jax-agent/gfork/commits/main"
+
+  echo "⟳  Checking for updates..."
+
+  # Fetch latest commit SHA for display
+  local latest_sha=""
+  if command -v curl &>/dev/null; then
+    latest_sha="$(curl -fsSL "$api_url" 2>/dev/null | grep '"sha"' | head -1 | sed 's/.*"sha": "\([^"]*\)".*/\1/' | cut -c1-7)"
+  fi
+
+  # Detect shell and update the right file
+  local shell_name
+  shell_name="$(basename "${SHELL:-bash}")"
+  if [[ -n "${FISH_VERSION:-}" ]]; then shell_name="fish"; fi
+  if [[ -n "${NU_VERSION:-}" ]]; then shell_name="nu"; fi
+
+  case "$shell_name" in
+    fish)
+      local dest="${XDG_CONFIG_HOME:-$HOME/.config}/fish/functions/gfork.fish"
+      curl -fsSL "$base_url/gfork.fish" -o "$dest" || { echo "✗ Update failed." >&2; return 1; }
+      ;;
+    nu|nushell)
+      local dest="${XDG_CONFIG_HOME:-$HOME/.config}/nushell/gfork.nu"
+      curl -fsSL "$base_url/gfork.nu" -o "$dest" || { echo "✗ Update failed." >&2; return 1; }
+      ;;
+    *)
+      # bash / zsh — update the sourced file and reload
+      local dest="${HOME}/.gfork.sh"
+      if [[ ! -f "$dest" ]]; then
+        # Might be sourced from a custom path; update the running script itself
+        dest="${BASH_SOURCE[0]:-${(%):-%x}}"
+      fi
+      curl -fsSL "$base_url/gfork.sh" -o "$dest" || { echo "✗ Update failed." >&2; return 1; }
+      # Reload into current shell
+      # shellcheck disable=SC1090
+      source "$dest"
+      ;;
+  esac
+
+  if [[ -n "$latest_sha" ]]; then
+    echo "✓ Updated to $latest_sha"
+  else
+    echo "✓ Updated to latest"
+  fi
+  echo "  Restart your shell or open a new tab to pick up any new subcommands."
+}
+
 _gfork_help() {
   echo "gfork — isolated git clone workflow"
   echo ""
@@ -166,9 +219,11 @@ _gfork_help() {
   echo "  gfork cd <feature-name>         cd into an existing clone"
   echo "  gfork rm <feature-name>         Delete a clone (with confirmation)"
   echo "  gfork ls                        List clones for this repo"
+  echo "  gfork update                    Update gfork to the latest version"
   echo ""
   echo "Examples:"
   echo "  gfork auth-refactor             Create myrepo--auth-refactor/"
   echo "  gfork cd auth-refactor          Jump into it"
   echo "  gfork rm auth-refactor          Clean it up when done"
+  echo "  gfork update                    Pull latest from GitHub"
 }

@@ -178,6 +178,27 @@ teardown() {
   [ ! -d "$TEST_ROOT/myrepo--my-feature" ]
 }
 
+# ─── gfork update ────────────────────────────────────────────────────────────
+
+@test "update subcommand exists and is callable" {
+  # Pre-create ~/.gfork.sh so update has a known destination
+  cp "$BATS_TEST_DIRNAME/../gfork.sh" "$TEST_ROOT/.gfork.sh"
+
+  # Mock curl to avoid hitting the network in CI
+  curl() {
+    if [[ "$*" == *"api.github.com"* ]]; then
+      echo '{"sha": "abc1234def"}'
+    else
+      local dest="${@: -1}"
+      cp "$BATS_TEST_DIRNAME/../gfork.sh" "$dest"
+    fi
+  }
+  export -f curl
+  HOME="$TEST_ROOT" run gfork update
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Updated"* ]]
+}
+
 # ─── gfork help ──────────────────────────────────────────────────────────────
 
 @test "help prints usage" {
@@ -190,4 +211,9 @@ teardown() {
   run gfork --help
   [ "$status" -eq 0 ]
   [[ "$output" == *"Usage"* ]]
+}
+
+@test "help mentions update subcommand" {
+  run gfork help
+  [[ "$output" == *"update"* ]]
 }
