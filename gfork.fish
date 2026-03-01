@@ -5,7 +5,23 @@
 #   curl -o ~/.config/fish/functions/gfork.fish \
 #     https://raw.githubusercontent.com/jax-agent/gfork/main/gfork.fish
 
-function gfork --description "Create an isolated local git clone for feature development"
+function gfork --description "Isolated git clone workflow for parallel development"
+    switch $argv[1]
+        case cd
+            _gfork_cd $argv[2]
+            return
+        case rm remove clean
+            _gfork_rm $argv[2]
+            return
+        case ls list
+            _gfork_ls
+            return
+        case -h --help help
+            _gfork_help
+            return
+    end
+
+    # Default: create a clone
     if test (count $argv) -lt 1
         echo "Usage: gfork <feature-name> [source-branch]"
         return 1
@@ -41,6 +57,117 @@ function gfork --description "Create an isolated local git clone for feature dev
     echo "✓ Clone ready: $dest"
     echo ""
     echo "  cd "(basename $dest)
-    echo "  # Create feature branches freely — they merge back here"
-    echo "  # When done: git push origin $source_branch → pull in original → rm -rf $dest"
+    echo "  # When done: gfork rm $feature"
+end
+
+function _gfork_dest --argument-names name
+    set repo_root (git rev-parse --show-toplevel 2>/dev/null)
+    if test $status -ne 0
+        echo "✗ Not inside a git repository." >&2
+        return 1
+    end
+    set repo_name (basename $repo_root)
+    set parent_dir (dirname $repo_root)
+
+    if string match -q "$repo_name--*" $name
+        echo $parent_dir/$name
+    else
+        echo $parent_dir/$repo_name--$name
+    end
+end
+
+function _gfork_cd --argument-names name
+    if test -z "$name"
+        echo "Usage: gfork cd <feature-name>"
+        return 1
+    end
+    set dest (_gfork_dest $name)
+    or return 1
+
+    if not test -d $dest
+        echo "✗ Clone not found: $dest"
+        echo "  Run 'gfork ls' to see available clones."
+        return 1
+    end
+
+    echo "→ $dest"
+    cd $dest
+end
+
+function _gfork_rm --argument-names name
+    if test -z "$name"
+        echo "Usage: gfork rm <feature-name>"
+        return 1
+    end
+    set dest (_gfork_dest $name)
+    or return 1
+
+    if not test -d $dest
+        echo "✗ Clone not found: $dest"
+        echo "  Run 'gfork ls' to see available clones."
+        return 1
+    end
+
+    # Check for uncommitted changes
+    set dirty (git -C $dest status --porcelain 2>/dev/null)
+    if test -n "$dirty"
+        echo "⚠  Clone has uncommitted changes:"
+        git -C $dest status --short
+        echo ""
+    end
+
+    # Check for unpushed commits
+    set unpushed (git -C $dest log --oneline '@{u}..' 2>/dev/null)
+    if test -n "$unpushed"
+        echo "⚠  Clone has unpushed commits:"
+        echo $unpushed
+        echo ""
+    end
+
+    read --prompt-str "Delete '$dest'? [y/N] " confirm
+    if test "$confirm" != y -a "$confirm" != Y
+        echo "Aborted."
+        return 0
+    end
+
+    rm -rf $dest
+    echo "✓ Deleted: $dest"
+end
+
+function _gfork_ls
+    set repo_root (git rev-parse --show-toplevel 2>/dev/null)
+    if test $status -ne 0
+        echo "✗ Not inside a git repository."
+        return 1
+    end
+    set repo_name (basename $repo_root)
+    set parent_dir (dirname $repo_root)
+
+    set found 0
+    for d in $parent_dir/$repo_name--*/
+        if test -d $d
+            set feature (string replace -r ".*--" "" (string trim --right --chars=/ $d))
+            echo "  "(basename (string trim --right --chars=/ $d))"  (gfork cd $feature)"
+            set found 1
+        end
+    end
+
+    if test $found -eq 0
+        echo "No clones found for '$repo_name'."
+    end
+end
+
+function _gfork_help
+    echo "gfork — isolated git clone workflow"
+    echo ""
+    echo "Usage:"
+    echo "  gfork <feature-name> [branch]   Create a clone (default: current branch)"
+    echo "  gfork cd <feature-name>         cd into an existing clone"
+    echo "  gfork rm <feature-name>         Delete a clone (with confirmation)"
+    echo "  gfork ls                        List clones for this repo"
+    echo ""
+    echo "Examples:"
+    echo "  gfork auth-refactor             Create myrepo--auth-refactor/"
+    echo "  gfork cd auth-refactor          Jump into it"
+    echo "  gfork rm auth-refactor          Clean it up when done"
 end

@@ -33,7 +33,12 @@ curl -fsSL https://raw.githubusercontent.com/jax-agent/gfork/main/install.sh | b
 ```bash
 gfork <feature-name>              # clone current branch
 gfork <feature-name> <branch>     # clone a specific branch
+gfork cd <feature-name>           # cd into an existing clone
+gfork rm <feature-name>           # delete a clone (with confirmation)
+gfork ls                          # list all clones for this repo
 ```
+
+> **Note (nushell):** cd is a built-in, so the commands are `gfork-cd`, `gfork-rm`, and `gfork-ls` instead.
 
 **Output:**
 ```
@@ -41,8 +46,7 @@ gfork <feature-name> <branch>     # clone a specific branch
 ✓ Clone ready: /projects/antmachine--memory-system
 
   cd antmachine--memory-system
-  # Create feature branches freely — they merge back here
-  # When done: git push origin main → pull in original → rm -rf <clone>
+  # When done: gfork rm memory-system
 ```
 
 ---
@@ -54,8 +58,8 @@ gfork <feature-name> <branch>     # clone a specific branch
 cd ~/projects/my-app
 gfork big-feature
 
-# 2. Move into the clone — this is your sandbox
-cd ../my-app--big-feature
+# 2. Jump into the clone in one command
+gfork cd big-feature              # ← drops you straight in
 
 # 3. Agents create branches freely inside the clone
 git checkout -b auth-system      # agent 1
@@ -71,10 +75,15 @@ git checkout -b email-templates  # agent 3
 git checkout main && git merge email-templates
 
 # 4. Feature complete — push and clean up
-git push origin main             # or: git push origin main --force-with-lease
+git push origin main
 cd ~/projects/my-app             # back to real repo
 git pull                         # pull the merged changes
-rm -rf ../my-app--big-feature    # delete the clone
+gfork rm big-feature             # ← confirms, warns if unpushed, then deletes
+
+# Or list what clones you have
+gfork ls
+#   my-app--big-feature  (gfork cd big-feature)
+#   my-app--experiment   (gfork cd experiment)
 ```
 
 ---
@@ -100,7 +109,7 @@ CLAUDE_CODE_ALLOW_ROOT=1 claude -p "
 # Agent creates branches, merges, you never touch the real repo
 git push origin main
 cd ~/projects/my-app && git pull
-rm -rf ../my-app--refactor-v2
+gfork rm refactor-v2
 ```
 
 **With parallel agents:**
@@ -135,7 +144,7 @@ codex "Add Stripe billing support. Work in a feature branch,
 
 git push origin main
 cd ~/projects/my-app && git pull
-rm -rf ../my-app--codex-feature
+gfork rm codex-feature
 ```
 
 ---
@@ -153,7 +162,7 @@ opencode "Implement the notification system end-to-end.
 
 git push origin main
 cd ~/projects/my-app && git pull
-rm -rf ../my-app--opencode-sprint
+gfork rm opencode-sprint
 ```
 
 ---
@@ -171,7 +180,7 @@ pi "Research and implement the best caching strategy for this codebase.
 
 git push origin main
 cd ~/projects/my-app && git pull
-rm -rf ../my-app--pi-research
+gfork rm pi-research
 ```
 
 ---
