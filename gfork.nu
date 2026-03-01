@@ -8,6 +8,11 @@
 #   Then add to ~/.config/nushell/config.nu:
 #     source ~/.config/nushell/gfork.nu
 
+# Base directory for all clones
+def _gfork_base [] {
+    $env.GFORK_DIR? | default $"($env.HOME)/.gfork"
+}
+
 # Resolve dest path from feature name or full clone name
 def _gfork_dest [name: string] {
     let repo_root_r = (do { git rev-parse --show-toplevel } | complete)
@@ -16,12 +21,12 @@ def _gfork_dest [name: string] {
     }
     let root = ($repo_root_r.stdout | str trim)
     let repo_name = ($root | path basename)
-    let parent_dir = ($root | path dirname)
+    let base = (_gfork_base)
 
     if ($name | str starts-with $"($repo_name)--") {
-        $"($parent_dir)/($name)"
+        $"($base)/($name)"
     } else {
-        $"($parent_dir)/($repo_name)--($name)"
+        $"($base)/($repo_name)--($name)"
     }
 }
 
@@ -49,19 +54,20 @@ def gfork [
     }
 
     let repo_name = ($root | path basename)
-    let parent_dir = ($root | path dirname)
-    let dest = $"($parent_dir)/($repo_name)--($feature)"
+    let base = (_gfork_base)
+    let dest = $"($base)/($repo_name)--($feature)"
 
     if ($dest | path exists) {
         error make { msg: $"✗ '($dest)' already exists. Choose a different name or delete it first." }
     }
 
+    mkdir $base
     print $"⎇  Cloning '($branch)' → ($dest)"
     git clone --local $root $dest -b $branch --quiet
 
     print $"✓ Clone ready: ($dest)"
     print ""
-    print $"  cd ($repo_name)--($feature)"
+    print $"  gfork-cd ($feature)"
     print $"  # When done: gfork-rm ($feature)"
 }
 
@@ -137,26 +143,39 @@ def gfork-update [] {
     print "  Run 'exec nu' or open a new tab to reload."
 }
 
-# List all gfork clones for the current repo
+# List all gfork clones (filtered to current repo if inside one)
 def gfork-ls [] {
-    let repo_root_r = (do { git rev-parse --show-toplevel } | complete)
-    if $repo_root_r.exit_code != 0 {
-        error make { msg: "✗ Not inside a git repository." }
-    }
-    let root = ($repo_root_r.stdout | str trim)
-    let repo_name = ($root | path basename)
-    let parent_dir = ($root | path dirname)
+    let base = (_gfork_base)
 
-    let pattern = $"($parent_dir)/($repo_name)--*"
-    let clones = (ls $"($parent_dir)/($repo_name)--*" 2>/dev/null | where type == dir | get name)
+    if not ($base | path exists) {
+        print "No clones yet. Run 'gfork <feature-name>' to create one."
+        return
+    }
+
+    let repo_root_r = (do { git rev-parse --show-toplevel } | complete)
+    let repo_name = if $repo_root_r.exit_code == 0 {
+        ($repo_root_r.stdout | str trim | path basename)
+    } else { "" }
+
+    let all_clones = (ls $base | where type == dir | get name)
+
+    let clones = if ($repo_name | str length) > 0 {
+        $all_clones | where { |d| ($d | path basename) | str starts-with $"($repo_name)--" }
+    } else {
+        $all_clones
+    }
 
     if ($clones | length) == 0 {
-        print $"No clones found for '($repo_name)'."
+        if ($repo_name | str length) > 0 {
+            print $"No clones found for '($repo_name)'. \(All clones in ($base)\)"
+        } else {
+            print $"No clones found in ($base)."
+        }
     } else {
         for d in $clones {
-            let base = ($d | path basename)
-            let feature = ($base | str replace $"($repo_name)--" "")
-            print $"  ($base)  \(gfork-cd ($feature)\)"
+            let b = ($d | path basename)
+            let feature = ($b | str replace -r ".*--" "")
+            print $"  ($b)  \(gfork-cd ($feature)\)"
         }
     }
 }

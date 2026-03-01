@@ -20,8 +20,9 @@ gfork \- isolated git clone workflow for parallel and AI agent development
 .
 .SH DESCRIPTION
 .B gfork
-creates an isolated local clone of the current git repository in a sibling
-directory.
+creates an isolated local clone of the current git repository inside a central
+directory (default:
+.IR ~/.gfork/ ).
 The clone is named
 .IB repo-name -- feature-name
 and shares git objects with the original via hardlinks, making it nearly
@@ -91,14 +92,16 @@ Exits non-zero if the clone does not exist.
 .
 .TP
 .B gfork ls
-List all clones that belong to the current repository.
-Clones are detected by scanning the parent directory for siblings whose name
-matches the pattern
-.IB repo-name -- *.
+List clones in
+.B $GFORK_DIR
+(default:
+.IR ~/.gfork/ ).
+When run inside a git repository, output is filtered to clones that belong to
+the current repo.
+When run outside a git repository, all clones across all repos are listed.
 Each entry is printed with the
 .B gfork cd
 command needed to jump into it.
-Exits non-zero when run outside a git repository.
 .
 .TP
 .BR "gfork update" ", " "gfork upgrade"
@@ -140,7 +143,7 @@ when the user aborts at the confirmation prompt.
 .SS Basic workflow
 .EX
 # Inside ~/projects/my-app (on branch main)
-gfork big-feature          # creates ~/projects/my-app--big-feature
+gfork big-feature          # creates ~/.gfork/my-app--big-feature
 gfork cd big-feature       # jump in
 git checkout -b my-branch  # work freely
 git push origin my-branch
@@ -275,7 +278,23 @@ fish	gfork.fish
 nushell	gfork.nu
 .TE
 .
+.SH ENVIRONMENT
+.TP
+.B GFORK_DIR
+Base directory where all clones are stored.
+Defaults to
+.IR ~/.gfork/ .
+Set this to use a different location:
+.EX
+export GFORK_DIR=~/work/clones
+.EE
+.
 .SH FILES
+.TP
+.I ~/.gfork/
+Default clone storage directory.
+All clones from all repos live here, named
+.IB repo-name -- feature-name .
 .TP
 .I ~/.config/zsh/functions/gfork.zsh
 Zsh install location. Any

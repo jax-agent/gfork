@@ -5,6 +5,14 @@
 #   curl -o ~/.config/fish/functions/gfork.fish \
 #     https://raw.githubusercontent.com/jax-agent/gfork/main/gfork.fish
 
+function _gfork_base
+    if set -q GFORK_DIR
+        echo $GFORK_DIR
+    else
+        echo $HOME/.gfork
+    end
+end
+
 function gfork --description "Isolated git clone workflow for parallel development"
     switch $argv[1]
         case cd
@@ -45,21 +53,22 @@ function gfork --description "Isolated git clone workflow for parallel developme
     end
 
     set repo_name (basename $repo_root)
-    set parent_dir (dirname $repo_root)
-    set dest $parent_dir/$repo_name--$feature
+    set base (_gfork_base)
+    set dest $base/$repo_name--$feature
 
     if test -d $dest
         echo "✗ '$dest' already exists. Choose a different name or delete it first."
         return 1
     end
 
+    mkdir -p $base
     echo "⎇  Cloning '$source_branch' → $dest"
     git clone --local $repo_root $dest -b $source_branch --quiet
     or return 1
 
     echo "✓ Clone ready: $dest"
     echo ""
-    echo "  cd "(basename $dest)
+    echo "  gfork cd $feature"
     echo "  # When done: gfork rm $feature"
 end
 
@@ -70,12 +79,12 @@ function _gfork_dest --argument-names name
         return 1
     end
     set repo_name (basename $repo_root)
-    set parent_dir (dirname $repo_root)
+    set base (_gfork_base)
 
     if string match -q "$repo_name--*" $name
-        echo $parent_dir/$name
+        echo $base/$name
     else
-        echo $parent_dir/$repo_name--$name
+        echo $base/$repo_name--$name
     end
 end
 
@@ -138,26 +147,41 @@ function _gfork_rm --argument-names name
 end
 
 function _gfork_ls
-    set repo_root (git rev-parse --show-toplevel 2>/dev/null)
-    if test $status -ne 0
-        echo "✗ Not inside a git repository."
-        return 1
+    set base (_gfork_base)
+
+    if not test -d $base
+        echo "No clones yet. Run 'gfork <feature-name>' to create one."
+        return 0
     end
-    set repo_name (basename $repo_root)
-    set parent_dir (dirname $repo_root)
+
+    set repo_name ""
+    set repo_root (git rev-parse --show-toplevel 2>/dev/null)
+    if test $status -eq 0
+        set repo_name (basename $repo_root)
+    end
 
     set found 0
-    for d in $parent_dir/$repo_name--*/
-        if test -d $d
-            set feature (string replace -r ".*--" "" (string trim --right --chars=/ $d))
-            echo "  "(basename (string trim --right --chars=/ $d))"  (gfork cd $feature)"
-            set found 1
+    for d in $base/*/
+        if not test -d $d
+            continue
         end
+        set base_name (basename (string trim --right --chars=/ $d))
+        if test -n "$repo_name" && not string match -q "$repo_name--*" $base_name
+            continue
+        end
+        set feature (string replace -r ".*--" "" $base_name)
+        echo "  $base_name  (gfork cd $feature)"
+        set found 1
     end
 
     if test $found -eq 0
-        echo "No clones found for '$repo_name'."
+        if test -n "$repo_name"
+            echo "No clones found for '$repo_name'. (All clones in $base)"
+        else
+            echo "No clones found in $base."
+        end
     end
+    return 0
 end
 
 function _gfork_update
@@ -194,8 +218,11 @@ function _gfork_help
     echo "  gfork <feature-name> [branch]   Create a clone (default: current branch)"
     echo "  gfork cd <feature-name>         cd into an existing clone"
     echo "  gfork rm <feature-name>         Delete a clone (with confirmation)"
-    echo "  gfork ls                        List clones for this repo"
+    echo "  gfork ls                        List clones (current repo, or all)"
     echo "  gfork update                    Update gfork to the latest version"
+    echo ""
+    echo "Clones are stored in: "(if set -q GFORK_DIR; echo $GFORK_DIR; else; echo $HOME/.gfork; end)
+    echo "Override with: set -x GFORK_DIR /your/path"
     echo ""
     echo "Examples:"
     echo "  gfork auth-refactor             Create myrepo--auth-refactor/"

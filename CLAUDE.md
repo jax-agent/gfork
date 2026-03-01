@@ -34,11 +34,15 @@ Think of `gfork` as a scratch pad. You hand it to an agent, it does its work,
 you take the commits you want, and you throw the scratch pad away.
 
 ```
-your-repo/              ← protected. agents never touch this.
-your-repo--feature-a/   ← agent 1 lives here
-your-repo--feature-b/   ← agent 2 lives here
-your-repo--experiment/  ← you're exploring something, no agent involved
+~/.gfork/                        ← all clones live here, out of the way
+  my-app--feature-a/             ← agent 1
+  my-app--feature-b/             ← agent 2
+  other-repo--experiment/        ← different project, same place
 ```
+
+Clones are centralised in `~/.gfork/` (overridable with `$GFORK_DIR`) so they
+never litter your project directories. `gfork ls` inside any repo shows only
+that repo's clones; run it anywhere else to see everything.
 
 Each clone is disposable. That's the point. When you stop treating the working
 tree as precious, you stop being afraid to let agents run freely.

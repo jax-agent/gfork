@@ -6,8 +6,11 @@ setup() {
   # Source gfork into the test shell
   source "$BATS_TEST_DIRNAME/../gfork.bash"
 
-  # Create a temp directory as our "projects" parent
+  # Create a temp directory as our workspace
   TEST_ROOT="$(mktemp -d)"
+
+  # Point GFORK_DIR at a temp location so tests don't touch ~/.gfork
+  export GFORK_DIR="$TEST_ROOT/.gfork"
 
   # Create a real git repo to work from
   ORIGIN="$TEST_ROOT/myrepo"
@@ -29,10 +32,10 @@ teardown() {
 
 # ─── gfork create ────────────────────────────────────────────────────────────
 
-@test "creates a clone in sibling directory" {
+@test "creates a clone in GFORK_DIR" {
   run gfork my-feature
   [ "$status" -eq 0 ]
-  [ -d "$TEST_ROOT/myrepo--my-feature" ]
+  [ -d "$GFORK_DIR/myrepo--my-feature" ]
 }
 
 @test "output confirms clone path" {
@@ -42,20 +45,20 @@ teardown() {
 
 @test "clone is a valid git repo" {
   gfork my-feature
-  run git -C "$TEST_ROOT/myrepo--my-feature" rev-parse --git-dir
+  run git -C "$GFORK_DIR/myrepo--my-feature" rev-parse --git-dir
   [ "$status" -eq 0 ]
 }
 
 @test "clone has the same commits as origin" {
   gfork my-feature
   origin_hash="$(git -C "$TEST_ROOT/myrepo" rev-parse HEAD)"
-  clone_hash="$(git -C "$TEST_ROOT/myrepo--my-feature" rev-parse HEAD)"
+  clone_hash="$(git -C "$GFORK_DIR/myrepo--my-feature" rev-parse HEAD)"
   [ "$origin_hash" = "$clone_hash" ]
 }
 
 @test "clone defaults to current branch" {
   run gfork my-feature
-  clone_branch="$(git -C "$TEST_ROOT/myrepo--my-feature" rev-parse --abbrev-ref HEAD)"
+  clone_branch="$(git -C "$GFORK_DIR/myrepo--my-feature" rev-parse --abbrev-ref HEAD)"
   [ "$clone_branch" = "master" ] || [ "$clone_branch" = "main" ]
 }
 
@@ -67,7 +70,7 @@ teardown() {
 
   run gfork dev-clone dev
   [ "$status" -eq 0 ]
-  clone_branch="$(git -C "$TEST_ROOT/myrepo--dev-clone" rev-parse --abbrev-ref HEAD)"
+  clone_branch="$(git -C "$GFORK_DIR/myrepo--dev-clone" rev-parse --abbrev-ref HEAD)"
   [ "$clone_branch" = "dev" ]
 }
 
@@ -104,13 +107,21 @@ teardown() {
 @test "ls shows no clones message when none exist" {
   run gfork ls
   [ "$status" -eq 0 ]
-  [[ "$output" == *"No clones found"* ]]
+  [[ "$output" == *"No clones"* ]]
 }
 
-@test "ls fails outside a git repo" {
+@test "ls outside a git repo shows all clones" {
+  gfork my-feature
   cd "$TEST_ROOT"
   run gfork ls
-  [ "$status" -ne 0 ]
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"myrepo--my-feature"* ]]
+}
+
+@test "custom GFORK_DIR is respected" {
+  local custom_dir="$TEST_ROOT/custom-clones"
+  GFORK_DIR="$custom_dir" gfork my-feature
+  [ -d "$custom_dir/myrepo--my-feature" ]
 }
 
 # ─── gfork cd ────────────────────────────────────────────────────────────────
@@ -118,13 +129,13 @@ teardown() {
 @test "cd changes into the clone directory" {
   gfork my-feature
   gfork cd my-feature
-  [ "$(pwd)" = "$TEST_ROOT/myrepo--my-feature" ]
+  [ "$(pwd)" = "$GFORK_DIR/myrepo--my-feature" ]
 }
 
 @test "cd accepts full clone name" {
   gfork my-feature
   gfork cd myrepo--my-feature
-  [ "$(pwd)" = "$TEST_ROOT/myrepo--my-feature" ]
+  [ "$(pwd)" = "$GFORK_DIR/myrepo--my-feature" ]
 }
 
 @test "cd fails if clone does not exist" {
@@ -142,22 +153,22 @@ teardown() {
 
 @test "rm deletes the clone after confirmation" {
   gfork my-feature
-  run bash -c "echo y | bash -c 'source $(dirname "$BATS_TEST_DIRNAME")/gfork.bash && cd $TEST_ROOT/myrepo && gfork rm my-feature'"
-  [ ! -d "$TEST_ROOT/myrepo--my-feature" ]
+  run bash -c "echo y | bash -c 'GFORK_DIR=$GFORK_DIR source $(dirname "$BATS_TEST_DIRNAME")/gfork.bash && cd $TEST_ROOT/myrepo && gfork rm my-feature'"
+  [ ! -d "$GFORK_DIR/myrepo--my-feature" ]
 }
 
 @test "rm aborts on N" {
   gfork my-feature
-  run bash -c "echo N | bash -c 'source $(dirname "$BATS_TEST_DIRNAME")/gfork.bash && cd $TEST_ROOT/myrepo && gfork rm my-feature'"
-  [ -d "$TEST_ROOT/myrepo--my-feature" ]
+  run bash -c "echo N | bash -c 'GFORK_DIR=$GFORK_DIR source $(dirname "$BATS_TEST_DIRNAME")/gfork.bash && cd $TEST_ROOT/myrepo && gfork rm my-feature'"
+  [ -d "$GFORK_DIR/myrepo--my-feature" ]
 }
 
 @test "rm warns about uncommitted changes" {
   gfork my-feature
-  echo "dirty" > "$TEST_ROOT/myrepo--my-feature/dirty.txt"
-  git -C "$TEST_ROOT/myrepo--my-feature" add dirty.txt
+  echo "dirty" > "$GFORK_DIR/myrepo--my-feature/dirty.txt"
+  git -C "$GFORK_DIR/myrepo--my-feature" add dirty.txt
 
-  run bash -c "echo N | bash -c 'source $(dirname "$BATS_TEST_DIRNAME")/gfork.bash && cd $TEST_ROOT/myrepo && gfork rm my-feature'"
+  run bash -c "echo N | bash -c 'GFORK_DIR=$GFORK_DIR source $(dirname "$BATS_TEST_DIRNAME")/gfork.bash && cd $TEST_ROOT/myrepo && gfork rm my-feature'"
   [[ "$output" == *"uncommitted"* ]]
 }
 
@@ -174,8 +185,8 @@ teardown() {
 
 @test "rm accepts full clone name" {
   gfork my-feature
-  run bash -c "echo y | bash -c 'source $(dirname "$BATS_TEST_DIRNAME")/gfork.bash && cd $TEST_ROOT/myrepo && gfork rm myrepo--my-feature'"
-  [ ! -d "$TEST_ROOT/myrepo--my-feature" ]
+  run bash -c "echo y | bash -c 'GFORK_DIR=$GFORK_DIR source $(dirname "$BATS_TEST_DIRNAME")/gfork.bash && cd $TEST_ROOT/myrepo && gfork rm myrepo--my-feature'"
+  [ ! -d "$GFORK_DIR/myrepo--my-feature" ]
 }
 
 # ─── gfork update ────────────────────────────────────────────────────────────

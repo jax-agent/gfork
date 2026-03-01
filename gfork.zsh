@@ -4,10 +4,17 @@
 # Zsh version. Installed to ~/.config/zsh/functions/gfork.zsh
 # Loaded automatically if your .zshrc contains:
 #   for f in ~/.config/zsh/functions/*.zsh; source $f
+#
+# Environment:
+#   GFORK_DIR   Base directory for all clones (default: ~/.gfork)
+
+_gfork_base() {
+  echo "${GFORK_DIR:-$HOME/.gfork}"
+}
 
 gfork() {
   case "${1:-}" in
-    cd)     _gfork_cd "${2:?Usage: gfork cd <feature-name>}";  return ;;
+    cd)     _gfork_cd "${2:?Usage: gfork cd <feature-name>}";          return ;;
     rm|remove|clean) _gfork_rm "${2:?Usage: gfork rm <feature-name>}"; return ;;
     ls|list)         _gfork_ls;      return ;;
     update|upgrade)  _gfork_update;  return ;;
@@ -20,16 +27,17 @@ gfork() {
   repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || {
     echo "✗ Not inside a git repository." >&2; return 1
   }
-  local repo_name parent_dir dest
+  local repo_name base dest
   repo_name="$(basename "$repo_root")"
-  parent_dir="$(dirname "$repo_root")"
-  dest="${parent_dir}/${repo_name}--${feature}"
+  base="$(_gfork_base)"
+  dest="${base}/${repo_name}--${feature}"
 
   if [[ -d "$dest" ]]; then
     echo "✗ '$dest' already exists. Choose a different feature name or delete it first." >&2
     return 1
   fi
 
+  mkdir -p "$base"
   echo "⎇  Cloning '$source_branch' → $dest"
   git clone --local "$repo_root" "$dest" -b "$source_branch" --quiet || return 1
   echo "✓ Clone ready: $dest"
@@ -44,13 +52,14 @@ _gfork_dest() {
   repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || {
     echo "✗ Not inside a git repository." >&2; return 1
   }
-  local repo_name parent_dir
+  local repo_name base
   repo_name="$(basename "$repo_root")"
-  parent_dir="$(dirname "$repo_root")"
+  base="$(_gfork_base)"
+
   if [[ "$name" == "${repo_name}--"* ]]; then
-    echo "${parent_dir}/${name}"
+    echo "${base}/${name}"
   else
-    echo "${parent_dir}/${repo_name}--${name}"
+    echo "${base}/${repo_name}--${name}"
   fi
 }
 
@@ -89,7 +98,6 @@ _gfork_rm() {
     echo ""
   fi
 
-  # Zsh read syntax
   local confirm
   read "confirm?Delete '$dest'? [y/N] "
   if [[ "${confirm:l}" != "y" ]]; then
@@ -100,22 +108,40 @@ _gfork_rm() {
 }
 
 _gfork_ls() {
+  local base
+  base="$(_gfork_base)"
+
+  if [[ ! -d "$base" ]]; then
+    echo "No clones yet. Run 'gfork <feature-name>' to create one."
+    return 0
+  fi
+
+  local repo_name=""
   local repo_root
-  repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || {
-    echo "✗ Not inside a git repository." >&2; return 1
-  }
-  local repo_name parent_dir
-  repo_name="$(basename "$repo_root")"
-  parent_dir="$(dirname "$repo_root")"
+  if repo_root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+    repo_name="$(basename "$repo_root")"
+  fi
 
   local found=0
-  for d in "${parent_dir}/${repo_name}--"*/; do
+  for d in "$base"/*/; do
     [[ -d "$d" ]] || continue
-    local feature="${${d%/}##*--}"
-    echo "  $(basename "${d%/}")  (gfork cd $feature)"
+    local base_name="${${d%/}##*/}"
+    if [[ -n "$repo_name" && "$base_name" != "${repo_name}--"* ]]; then
+      continue
+    fi
+    local feature="${base_name##*--}"
+    echo "  $base_name  (gfork cd $feature)"
     found=1
   done
-  (( found )) || echo "No clones found for '$repo_name'."
+
+  if (( !found )); then
+    if [[ -n "$repo_name" ]]; then
+      echo "No clones found for '$repo_name'. (All clones in $base)"
+    else
+      echo "No clones found in $base."
+    fi
+  fi
+  return 0
 }
 
 _gfork_update() {
@@ -141,11 +167,14 @@ _gfork_help() {
   echo "  gfork <feature-name> [branch]   Create a clone (default: current branch)"
   echo "  gfork cd <feature-name>         cd into an existing clone"
   echo "  gfork rm <feature-name>         Delete a clone (with confirmation)"
-  echo "  gfork ls                        List clones for this repo"
+  echo "  gfork ls                        List clones (current repo, or all)"
   echo "  gfork update                    Update gfork to the latest version"
   echo ""
+  echo "Clones are stored in: ${GFORK_DIR:-$HOME/.gfork}"
+  echo "Override with: export GFORK_DIR=/your/path"
+  echo ""
   echo "Examples:"
-  echo "  gfork auth-refactor             Create myrepo--auth-refactor/"
+  echo "  gfork auth-refactor             Create ~/.gfork/myrepo--auth-refactor"
   echo "  gfork cd auth-refactor          Jump into it"
   echo "  gfork rm auth-refactor          Clean it up when done"
   echo "  gfork update                    Pull latest from GitHub"

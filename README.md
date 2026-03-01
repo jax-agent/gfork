@@ -5,9 +5,12 @@
 One command creates a full local clone of your repo in a sibling folder. AI agents work freely inside — as many branches as they want — without touching your real repo. When done: push, pull, delete clone.
 
 ```
-your-repo/              →  gfork big-feature  →  your-repo--big-feature/
-  (protected)                                       (agents go wild here)
+your-repo/          →  gfork big-feature  →  ~/.gfork/your-repo--big-feature/
+  (protected)                                   (agents go wild here)
 ```
+
+Clones live in `~/.gfork/` by default — never cluttering your project
+directories. Override with `export GFORK_DIR=/your/path`.
 
 ---
 
@@ -79,7 +82,7 @@ gfork ls                          # list all clones for this repo
 ```bash
 # 1. You're in your real repo on main
 cd ~/projects/my-app
-gfork big-feature
+gfork big-feature                 # creates ~/.gfork/my-app--big-feature
 
 # 2. Jump into the clone in one command
 gfork cd big-feature              # ← drops you straight in
@@ -103,10 +106,13 @@ cd ~/projects/my-app             # back to real repo
 git pull                         # pull the merged changes
 gfork rm big-feature             # ← confirms, warns if unpushed, then deletes
 
-# Or list what clones you have
+# Or list what clones you have (filtered to current repo)
 gfork ls
 #   my-app--big-feature  (gfork cd big-feature)
 #   my-app--experiment   (gfork cd experiment)
+
+# Run gfork ls anywhere (outside a repo) to see ALL clones across all projects
+
 ```
 
 ---
