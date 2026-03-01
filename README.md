@@ -1,98 +1,231 @@
 # gfork
 
-A tiny shell function that creates an isolated local clone of your git repo — purpose-built for AI agent workflows and long-running feature development.
+> Isolated git clone workflow for AI agent and parallel feature development.
 
-## The Problem
-
-When you hand a codebase to an AI agent (Claude Code, Codex, Cursor, etc.), it needs freedom to create branches, experiment, and make mistakes — without touching your real repo. Git worktrees help, but they share a `.git` directory and can't check out the same branch twice.
-
-**gfork solves this with a dead-simple pattern:** clone locally, work freely, push when done, delete clone.
-
-## The Workflow
+One command creates a full local clone of your repo in a sibling folder. AI agents work freely inside — as many branches as they want — without touching your real repo. When done: push, pull, delete clone.
 
 ```
-main repo                       clone (your sandbox)
-─────────────────               ──────────────────────────────────
-antmachine/          →  gfork   antmachine--memory-system/
-  (your real repo)                agents create branches freely:
-                                    belief-actor
-                                    notes-actor
-                                    graph-persistence
-                                  all merge into clone's main
-                                  ↓
-                                git push origin main  (or open PR)
-                                ↓
-                              cd ../antmachine && git pull
-                              rm -rf ../antmachine--memory-system
+your-repo/              →  gfork big-feature  →  your-repo--big-feature/
+  (protected)                                       (agents go wild here)
 ```
+
+---
 
 ## Install
 
-**Option 1: Source in your shell config (recommended)**
-
+**One-liner (auto-detects your shell):**
 ```bash
-# Download
-curl -o ~/.gfork.sh https://raw.githubusercontent.com/jax-agent/gfork/main/gfork.sh
-
-# Add to ~/.zshrc or ~/.bashrc
-echo 'source ~/.gfork.sh' >> ~/.zshrc
-source ~/.zshrc
+curl -fsSL https://raw.githubusercontent.com/jax-agent/gfork/main/install.sh | bash
 ```
 
-**Option 2: Copy-paste the function**
+**Manual install by shell:**
 
-Copy `gfork.sh` into your `~/.zshrc` or `~/.bashrc` directly.
+| Shell | Command |
+|-------|---------|
+| **zsh / bash** | `curl -o ~/.gfork.sh https://raw.githubusercontent.com/jax-agent/gfork/main/gfork.sh && echo 'source ~/.gfork.sh' >> ~/.zshrc` |
+| **fish** | `curl -o ~/.config/fish/functions/gfork.fish https://raw.githubusercontent.com/jax-agent/gfork/main/gfork.fish` |
+| **nushell** | `curl -o ~/.config/nushell/gfork.nu https://raw.githubusercontent.com/jax-agent/gfork/main/gfork.nu && echo 'source ~/.config/nushell/gfork.nu' >> ~/.config/nushell/config.nu` |
+
+---
 
 ## Usage
 
 ```bash
-# Fork the current branch into a sibling directory
-gfork <feature-name>
-
-# Fork from a specific branch
-gfork <feature-name> <source-branch>
+gfork <feature-name>              # clone current branch
+gfork <feature-name> <branch>     # clone a specific branch
 ```
 
-### Example
+**Output:**
+```
+⎇  Cloning 'main' → /projects/antmachine--memory-system
+✓ Clone ready: /projects/antmachine--memory-system
+
+  cd antmachine--memory-system
+  # Create feature branches freely — they merge back here
+  # When done: git push origin main → pull in original → rm -rf <clone>
+```
+
+---
+
+## The Workflow
 
 ```bash
-# You're in ~/projects/antmachine on main
-gfork memory-system
-# → Creates ~/projects/antmachine--memory-system/ cloned from main
+# 1. You're in your real repo on main
+cd ~/projects/my-app
+gfork big-feature
 
-cd ../antmachine--memory-system
+# 2. Move into the clone — this is your sandbox
+cd ../my-app--big-feature
 
-# AI agents (or you) create branches freely:
-git checkout -b belief-actor
+# 3. Agents create branches freely inside the clone
+git checkout -b auth-system      # agent 1
 # ... work ...
-git checkout main && git merge belief-actor
+git checkout main && git merge auth-system
 
-git checkout -b notes-actor
+git checkout -b payment-flow     # agent 2
 # ... work ...
-git checkout main && git merge notes-actor
+git checkout main && git merge payment-flow
 
-# Feature complete:
-git push origin main        # push to GitHub (or open a PR)
-cd ../antmachine            # back to original
-git pull                    # pull changes
-rm -rf ../antmachine--memory-system   # clean up clone
+git checkout -b email-templates  # agent 3
+# ... work ...
+git checkout main && git merge email-templates
+
+# 4. Feature complete — push and clean up
+git push origin main             # or: git push origin main --force-with-lease
+cd ~/projects/my-app             # back to real repo
+git pull                         # pull the merged changes
+rm -rf ../my-app--big-feature    # delete the clone
 ```
+
+---
+
+## Using gfork with AI Agents
+
+### Claude Code
+
+Claude Code works great inside a gfork clone. Each agent session gets full branch freedom.
+
+```bash
+cd ~/projects/my-app
+gfork refactor-v2
+cd ../my-app--refactor-v2
+
+# Run Claude Code inside the clone
+CLAUDE_CODE_ALLOW_ROOT=1 claude -p "
+  Refactor the authentication module to use JWT.
+  Create a feature branch called 'jwt-auth', do all your work there,
+  run the tests, and merge back to main when passing.
+" --output-format text
+
+# Agent creates branches, merges, you never touch the real repo
+git push origin main
+cd ~/projects/my-app && git pull
+rm -rf ../my-app--refactor-v2
+```
+
+**With parallel agents:**
+```bash
+gfork parallel-sprint
+cd ../my-app--parallel-sprint
+
+# Spin up multiple Claude Code agents simultaneously
+CLAUDE_CODE_ALLOW_ROOT=1 claude -p "Build the user dashboard on branch 'dashboard'" &
+CLAUDE_CODE_ALLOW_ROOT=1 claude -p "Build the API layer on branch 'api-layer'" &
+CLAUDE_CODE_ALLOW_ROOT=1 claude -p "Write the test suite on branch 'tests'" &
+wait
+
+# Review and merge what you want
+git merge dashboard
+git merge api-layer
+git merge tests
+```
+
+---
+
+### Codex (OpenAI)
+
+```bash
+cd ~/projects/my-app
+gfork codex-feature
+cd ../my-app--codex-feature
+
+# Point Codex at the clone
+codex "Add Stripe billing support. Work in a feature branch, 
+       merge to main when complete."
+
+git push origin main
+cd ~/projects/my-app && git pull
+rm -rf ../my-app--codex-feature
+```
+
+---
+
+### OpenCode
+
+```bash
+cd ~/projects/my-app
+gfork opencode-sprint
+cd ../my-app--opencode-sprint
+
+# OpenCode works in isolated clone
+opencode "Implement the notification system end-to-end.
+          Use sub-branches per component, merge when done."
+
+git push origin main
+cd ~/projects/my-app && git pull
+rm -rf ../my-app--opencode-sprint
+```
+
+---
+
+### Pi Agent (Perplexity)
+
+```bash
+cd ~/projects/my-app
+gfork pi-research
+cd ../my-app--pi-research
+
+# Pi agent does research-heavy tasks in isolation
+pi "Research and implement the best caching strategy for this codebase.
+    Try different approaches in separate branches, benchmark, keep the winner."
+
+git push origin main
+cd ~/projects/my-app && git pull
+rm -rf ../my-app--pi-research
+```
+
+---
+
+### Pro tip: CLAUDE.md / AGENTS.md inside the clone
+
+Drop an instruction file in the clone root to give agents context:
+
+```bash
+gfork payment-feature
+cd ../my-app--payment-feature
+
+cat > AGENTS.md << 'EOF'
+You are working in an isolated clone of my-app.
+- Create a branch for each logical unit of work
+- Merge branches back to main as they complete  
+- Never push to origin — I will handle that
+- Run tests before merging: `mix test` / `npm test` / `pytest`
+EOF
+
+claude -p "Implement Stripe billing per AGENTS.md"
+```
+
+---
 
 ## Why not git worktrees?
 
 | | gfork | git worktree |
 |---|---|---|
-| Isolated `.git` | ✓ | ✗ (shared) |
-| Same branch in two places | ✓ | ✗ |
-| Unlimited sub-branches | ✓ | ✓ |
+| Isolated `.git` | ✓ | ✗ shared |
+| Same branch name in two places | ✓ | ✗ |
 | AI agents can't corrupt real repo | ✓ | ✗ |
+| Multiple agents, zero coordination | ✓ | limited |
 | Disk usage | low (hardlinks) | lower |
 | Clean lifecycle | clone → work → delete | manual prune |
+| Works with all tools | ✓ | some tools break |
 
-## Why not `cp -r`?
+## Why `git clone --local` over `cp -r`?
 
-`git clone --local` uses hardlinks for git objects — it's near-instant and doesn't duplicate object storage. The clone also knows its origin, so push/pull just works.
+`git clone --local` uses hardlinks for git objects — near-instant even on large repos, minimal extra disk usage. The clone knows its origin so `git push`/`git pull` just work.
+
+---
+
+## Shell Support
+
+| Shell | File | Notes |
+|-------|------|-------|
+| **bash** | `gfork.sh` | Source in `~/.bashrc` |
+| **zsh** | `gfork.sh` | Source in `~/.zshrc` |
+| **fish** | `gfork.fish` | Drop in `~/.config/fish/functions/` |
+| **nushell** | `gfork.nu` | Source in `~/.config/nushell/config.nu` |
+
+---
 
 ## License
 
-MIT
+MIT — use freely, contributions welcome.
