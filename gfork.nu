@@ -119,23 +119,37 @@ def gfork-rm [
 }
 
 # Update gfork to the latest version from GitHub
-def gfork-update [] {
+def gfork-update [
+    --force(-f)  # Reinstall even if already up to date
+] {
     let base_url = "https://raw.githubusercontent.com/jax-agent/gfork/main"
     let api_url = "https://api.github.com/repos/jax-agent/gfork/commits/main"
+    let config_dir = ($env.XDG_CONFIG_HOME? | default $"($env.HOME)/.config")
+    let dest = $"($config_dir)/nushell/gfork.nu"
+    let vfile = $"($config_dir)/nushell/.gfork_version"
 
     print "⟳  Checking for updates..."
 
-    # Fetch latest SHA
     let latest_sha = (do {
         http get $api_url | get sha | str substring 0..6
     } | default "")
 
-    # Find the installed nu file
-    let dest = $"($env.XDG_CONFIG_HOME? | default $"($env.HOME)/.config")/nushell/gfork.nu"
+    let local_sha = if ($vfile | path exists) { open $vfile | str trim } else { "" }
+
+    if ($latest_sha | str length) > 0 and $latest_sha == $local_sha and not $force {
+        print $"✓ Already up to date \($latest_sha\)"
+        print "  Use 'gfork-update --force' to reinstall anyway."
+        return
+    }
+
+    if $force and $latest_sha == $local_sha {
+        print $"  Forcing reinstall of ($latest_sha)..."
+    }
 
     http get $"($base_url)/gfork.nu" | save --force $dest
 
     if ($latest_sha | str length) > 0 {
+        $latest_sha | save --force $vfile
         print $"✓ Updated to ($latest_sha)"
     } else {
         print "✓ Updated to latest"

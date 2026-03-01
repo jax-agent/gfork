@@ -104,18 +104,27 @@ Each entry is printed with the
 command needed to jump into it.
 .
 .TP
-.BR "gfork update" ", " "gfork upgrade"
+.BR "gfork update" " [" --force | -f ]
 Update gfork to the latest version from GitHub.
-Downloads the appropriate shell file for the current shell
-.RB ( gfork.sh ", " gfork.fish ", or " gfork.nu )
-and overwrites the installed copy.
+Compares the locally recorded commit SHA (stored in
+.IR .gfork_version
+next to the installed shell file) against the latest commit on
+.BR main .
+If they match, prints
+.I Already up to date
+and exits without downloading anything.
+Pass
+.B --force
+.RB ( or " -f" )
+to skip the version check and reinstall regardless.
 Prints the short commit SHA of the version pulled.
 Requires
 .BR curl (1)
 and an active internet connection.
+The version file is written on every fresh install and successful update.
 A shell reload
-.RB ( "source ~/.gfork.sh" ", " "exec fish" ", etc.")
-is needed to pick up any new subcommands added in the update.
+.RB ( "source ~/.config/bash/functions/gfork.bash" ", " "exec fish" ", etc.")
+is needed to pick up any new subcommands.
 .
 .TP
 .BR "gfork help" ", " "gfork --help" ", " "gfork -h"

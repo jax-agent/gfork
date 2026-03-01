@@ -191,12 +191,10 @@ teardown() {
 
 # ─── gfork update ────────────────────────────────────────────────────────────
 
-@test "update subcommand exists and is callable" {
-  # Pre-create ~/.config/bash/functions/gfork.bash so update has a known destination
+@test "update downloads and reports new version" {
   mkdir -p "$TEST_ROOT/.config/bash/functions"
   cp "$BATS_TEST_DIRNAME/../gfork.bash" "$TEST_ROOT/.config/bash/functions/gfork.bash"
 
-  # Mock curl to avoid hitting the network in CI
   curl() {
     if [[ "$*" == *"api.github.com"* ]]; then
       echo '{"sha": "abc1234def"}'
@@ -207,6 +205,61 @@ teardown() {
   }
   export -f curl
   HOME="$TEST_ROOT" run gfork update
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Updated"* ]]
+}
+
+@test "update skips when already up to date" {
+  mkdir -p "$TEST_ROOT/.config/bash/functions"
+  cp "$BATS_TEST_DIRNAME/../gfork.bash" "$TEST_ROOT/.config/bash/functions/gfork.bash"
+  echo "abc1234" > "$TEST_ROOT/.config/bash/functions/.gfork_version"
+
+  curl() {
+    if [[ "$*" == *"api.github.com"* ]]; then
+      echo '{"sha": "abc1234def"}'
+    fi
+  }
+  export -f curl
+  HOME="$TEST_ROOT" run gfork update
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Already up to date"* ]]
+}
+
+@test "update --force reinstalls when already up to date" {
+  mkdir -p "$TEST_ROOT/.config/bash/functions"
+  cp "$BATS_TEST_DIRNAME/../gfork.bash" "$TEST_ROOT/.config/bash/functions/gfork.bash"
+  echo "abc1234" > "$TEST_ROOT/.config/bash/functions/.gfork_version"
+
+  curl() {
+    if [[ "$*" == *"api.github.com"* ]]; then
+      echo '{"sha": "abc1234def"}'
+    else
+      local dest="${@: -1}"
+      cp "$BATS_TEST_DIRNAME/../gfork.bash" "$dest"
+    fi
+  }
+  export -f curl
+  HOME="$TEST_ROOT" run gfork update --force
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Forcing reinstall"* ]]
+  [[ "$output" == *"Updated"* ]]
+}
+
+@test "update -f is alias for --force" {
+  mkdir -p "$TEST_ROOT/.config/bash/functions"
+  cp "$BATS_TEST_DIRNAME/../gfork.bash" "$TEST_ROOT/.config/bash/functions/gfork.bash"
+  echo "abc1234" > "$TEST_ROOT/.config/bash/functions/.gfork_version"
+
+  curl() {
+    if [[ "$*" == *"api.github.com"* ]]; then
+      echo '{"sha": "abc1234def"}'
+    else
+      local dest="${@: -1}"
+      cp "$BATS_TEST_DIRNAME/../gfork.bash" "$dest"
+    fi
+  }
+  export -f curl
+  HOME="$TEST_ROOT" run gfork update -f
   [ "$status" -eq 0 ]
   [[ "$output" == *"Updated"* ]]
 }

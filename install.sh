@@ -13,6 +13,15 @@ detect_shell() {
   echo "$shell_name"
 }
 
+# Fetch and write the current commit SHA for update checks
+_write_version_file() {
+  local vfile="$1"
+  local sha
+  sha="$(curl -fsSL "https://api.github.com/repos/jax-agent/gfork/commits/main" 2>/dev/null \
+    | grep '"sha"' | head -1 | sed 's/.*"sha": "\([^"]*\)".*/\1/' | cut -c1-7)"
+  [[ -n "$sha" ]] && echo "$sha" > "$vfile"
+}
+
 # Add a single line to a rc file only if it isn't already there
 add_line_if_missing() {
   local file="$1" line="$2"
@@ -33,6 +42,7 @@ install_zsh() {
   mkdir -p "$dir"
   echo "→ Downloading gfork.zsh → $dest"
   curl -fsSL "$BASE_URL/gfork.zsh" -o "$dest"
+  _write_version_file "$dir/.gfork_version"
 
   echo "→ Ensuring loader in $rc"
   add_line_if_missing "$rc" "$loader"
@@ -57,6 +67,7 @@ install_bash() {
   mkdir -p "$dir"
   echo "→ Downloading gfork.bash → $dest"
   curl -fsSL "$BASE_URL/gfork.bash" -o "$dest"
+  _write_version_file "$dir/.gfork_version"
 
   echo "→ Ensuring loader in $rc"
   add_line_if_missing "$rc" "$loader"
@@ -76,6 +87,7 @@ install_fish() {
   mkdir -p "$dir"
   echo "→ Downloading gfork.fish → $dest"
   curl -fsSL "$BASE_URL/gfork.fish" -o "$dest"
+  _write_version_file "$dir/.gfork_version"
   echo "✓ Installed for fish"
   echo "  fish auto-loads everything in $dir — no config change needed."
 }
@@ -88,6 +100,7 @@ install_nu() {
   mkdir -p "$dir"
   echo "→ Downloading gfork.nu → $dest"
   curl -fsSL "$BASE_URL/gfork.nu" -o "$dest"
+  _write_version_file "$dir/.gfork_version"
   echo "→ Ensuring loader in $config"
   add_line_if_missing "$config" "$loader"
   echo "✓ Installed for nushell"

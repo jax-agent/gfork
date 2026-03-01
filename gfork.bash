@@ -17,7 +17,7 @@ gfork() {
     cd)     _gfork_cd "${2:?Usage: gfork cd <feature-name>}";          return ;;
     rm|remove|clean) _gfork_rm "${2:?Usage: gfork rm <feature-name>}"; return ;;
     ls|list)         _gfork_ls;      return ;;
-    update|upgrade)  _gfork_update;  return ;;
+    update|upgrade)  shift; _gfork_update "$@";  return ;;
     -h|--help|help)  _gfork_help;    return ;;
   esac
 
@@ -146,16 +146,45 @@ _gfork_ls() {
   return 0
 }
 
+_gfork_version_file() {
+  echo "${GFORK_BASH_DIR:-$HOME/.config/bash/functions}/.gfork_version"
+}
+
+_gfork_local_sha() {
+  local vfile
+  vfile="$(_gfork_version_file)"
+  [[ -f "$vfile" ]] && cat "$vfile" || echo ""
+}
+
 _gfork_update() {
+  local force=0
+  for arg in "$@"; do
+    [[ "$arg" == "--force" || "$arg" == "-f" ]] && force=1
+  done
+
   local base_url="https://raw.githubusercontent.com/jax-agent/gfork/main"
   local api_url="https://api.github.com/repos/jax-agent/gfork/commits/main"
   local dest="${GFORK_BASH_DIR:-$HOME/.config/bash/functions}/gfork.bash"
+  local vfile
+  vfile="$(_gfork_version_file)"
 
   echo "⟳  Checking for updates..."
-  local latest_sha=""
+
+  local latest_sha local_sha
   latest_sha="$(curl -fsSL "$api_url" 2>/dev/null | grep '"sha"' | head -1 | sed 's/.*"sha": "\([^"]*\)".*/\1/' | cut -c1-7)"
+  local_sha="$(_gfork_local_sha)"
+
+  if [[ -n "$latest_sha" && "$latest_sha" == "$local_sha" && $force -eq 0 ]]; then
+    echo "✓ Already up to date ($latest_sha)"
+    echo "  Use 'gfork update --force' to reinstall anyway."
+    return 0
+  fi
+
+  [[ $force -eq 1 && "$latest_sha" == "$local_sha" ]] && echo "  Forcing reinstall of $latest_sha..."
 
   curl -fsSL "$base_url/gfork.bash" -o "$dest" || { echo "✗ Update failed." >&2; return 1; }
+  [[ -n "$latest_sha" ]] && echo "$latest_sha" > "$vfile"
+
   # shellcheck disable=SC1090
   source "$dest"
 
@@ -172,6 +201,7 @@ _gfork_help() {
   echo "  gfork rm <feature-name>         Delete a clone (with confirmation)"
   echo "  gfork ls                        List clones (current repo, or all)"
   echo "  gfork update                    Update gfork to the latest version"
+  echo "  gfork update --force            Reinstall even if already up to date"
   echo ""
   echo "Clones are stored in: ${GFORK_DIR:-$HOME/.gfork}"
   echo "Override with: export GFORK_DIR=/your/path"
