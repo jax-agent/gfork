@@ -197,11 +197,22 @@ curl -fsSL https://raw.githubusercontent.com/jax-agent/gfork/main/install.sh | b
 .
 .SS Manual
 .TP
-.B bash / zsh
+.B zsh
 .EX
-curl -o ~/.gfork.sh \\
-  https://raw.githubusercontent.com/jax-agent/gfork/main/gfork.sh
-echo 'source ~/.gfork.sh' >> ~/.zshrc   # or ~/.bashrc
+mkdir -p ~/.config/zsh/functions
+curl -o ~/.config/zsh/functions/gfork.zsh \\
+  https://raw.githubusercontent.com/jax-agent/gfork/main/gfork.zsh
+# Add once to ~/.zshrc:
+echo "for f in ~/.config/zsh/functions/*.zsh; source \\$f" >> ~/.zshrc
+.EE
+.TP
+.B bash
+.EX
+mkdir -p ~/.config/bash/functions
+curl -o ~/.config/bash/functions/gfork.bash \\
+  https://raw.githubusercontent.com/jax-agent/gfork/main/gfork.bash
+# Add once to ~/.bashrc:
+echo 'for f in ~/.config/bash/functions/*.bash; do source "$f"; done' >> ~/.bashrc
 .EE
 .TP
 .B fish
@@ -266,11 +277,20 @@ nushell	gfork.nu
 .
 .SH FILES
 .TP
-.I ~/.gfork.sh
-Default install location for bash/zsh.
+.I ~/.config/zsh/functions/gfork.zsh
+Zsh install location. Any
+.I *.zsh
+file dropped here is loaded automatically when the generic loader line is present in
+.IR ~/.zshrc .
+.TP
+.I ~/.config/bash/functions/gfork.bash
+Bash install location. Any
+.I *.bash
+file dropped here is loaded automatically when the generic loader line is present in
+.IR ~/.bashrc .
 .TP
 .I ~/.config/fish/functions/gfork.fish
-Fish auto-load location.
+Fish auto-load location (no config change needed).
 .TP
 .I ~/.config/nushell/gfork.nu
 Nushell source file (must be sourced from

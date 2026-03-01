@@ -4,7 +4,7 @@
 
 setup() {
   # Source gfork into the test shell
-  source "$BATS_TEST_DIRNAME/../gfork.sh"
+  source "$BATS_TEST_DIRNAME/../gfork.bash"
 
   # Create a temp directory as our "projects" parent
   TEST_ROOT="$(mktemp -d)"
@@ -142,13 +142,13 @@ teardown() {
 
 @test "rm deletes the clone after confirmation" {
   gfork my-feature
-  run bash -c "echo y | bash -c 'source $(dirname "$BATS_TEST_DIRNAME")/gfork.sh && cd $TEST_ROOT/myrepo && gfork rm my-feature'"
+  run bash -c "echo y | bash -c 'source $(dirname "$BATS_TEST_DIRNAME")/gfork.bash && cd $TEST_ROOT/myrepo && gfork rm my-feature'"
   [ ! -d "$TEST_ROOT/myrepo--my-feature" ]
 }
 
 @test "rm aborts on N" {
   gfork my-feature
-  run bash -c "echo N | bash -c 'source $(dirname "$BATS_TEST_DIRNAME")/gfork.sh && cd $TEST_ROOT/myrepo && gfork rm my-feature'"
+  run bash -c "echo N | bash -c 'source $(dirname "$BATS_TEST_DIRNAME")/gfork.bash && cd $TEST_ROOT/myrepo && gfork rm my-feature'"
   [ -d "$TEST_ROOT/myrepo--my-feature" ]
 }
 
@@ -157,7 +157,7 @@ teardown() {
   echo "dirty" > "$TEST_ROOT/myrepo--my-feature/dirty.txt"
   git -C "$TEST_ROOT/myrepo--my-feature" add dirty.txt
 
-  run bash -c "echo N | bash -c 'source $(dirname "$BATS_TEST_DIRNAME")/gfork.sh && cd $TEST_ROOT/myrepo && gfork rm my-feature'"
+  run bash -c "echo N | bash -c 'source $(dirname "$BATS_TEST_DIRNAME")/gfork.bash && cd $TEST_ROOT/myrepo && gfork rm my-feature'"
   [[ "$output" == *"uncommitted"* ]]
 }
 
@@ -174,15 +174,16 @@ teardown() {
 
 @test "rm accepts full clone name" {
   gfork my-feature
-  run bash -c "echo y | bash -c 'source $(dirname "$BATS_TEST_DIRNAME")/gfork.sh && cd $TEST_ROOT/myrepo && gfork rm myrepo--my-feature'"
+  run bash -c "echo y | bash -c 'source $(dirname "$BATS_TEST_DIRNAME")/gfork.bash && cd $TEST_ROOT/myrepo && gfork rm myrepo--my-feature'"
   [ ! -d "$TEST_ROOT/myrepo--my-feature" ]
 }
 
 # ─── gfork update ────────────────────────────────────────────────────────────
 
 @test "update subcommand exists and is callable" {
-  # Pre-create ~/.gfork.sh so update has a known destination
-  cp "$BATS_TEST_DIRNAME/../gfork.sh" "$TEST_ROOT/.gfork.sh"
+  # Pre-create ~/.config/bash/functions/gfork.bash so update has a known destination
+  mkdir -p "$TEST_ROOT/.config/bash/functions"
+  cp "$BATS_TEST_DIRNAME/../gfork.bash" "$TEST_ROOT/.config/bash/functions/gfork.bash"
 
   # Mock curl to avoid hitting the network in CI
   curl() {
@@ -190,7 +191,7 @@ teardown() {
       echo '{"sha": "abc1234def"}'
     else
       local dest="${@: -1}"
-      cp "$BATS_TEST_DIRNAME/../gfork.sh" "$dest"
+      cp "$BATS_TEST_DIRNAME/../gfork.bash" "$dest"
     fi
   }
   export -f curl

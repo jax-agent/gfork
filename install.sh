@@ -6,57 +6,90 @@ set -e
 BASE_URL="https://raw.githubusercontent.com/jax-agent/gfork/main"
 
 detect_shell() {
-  # Check current shell process
   local shell_name
   shell_name="$(basename "${SHELL:-}")"
-
-  # Also check if we're running inside fish/nu (they might invoke bash for scripts)
   if [[ -n "${FISH_VERSION:-}" ]]; then shell_name="fish"; fi
   if [[ -n "${NU_VERSION:-}" ]]; then shell_name="nu"; fi
-
   echo "$shell_name"
 }
 
-install_bash_zsh() {
-  local rc_file="$1"
-  local dest="$HOME/.gfork.sh"
-  echo "→ Downloading gfork.sh..."
-  curl -fsSL "$BASE_URL/gfork.sh" -o "$dest"
-  local line='source ~/.gfork.sh'
-  if ! grep -qF "$line" "$rc_file" 2>/dev/null; then
-    printf '\n# gfork — git local clone workflow\n%s\n' "$line" >> "$rc_file"
-    echo "→ Added to $rc_file"
+# Add a single line to a rc file only if it isn't already there
+add_line_if_missing() {
+  local file="$1" line="$2"
+  if ! grep -qF "$line" "$file" 2>/dev/null; then
+    printf '\n%s\n' "$line" >> "$file"
+    echo "  → Added to $file"
   else
-    echo "→ Already in $rc_file (skipping)"
+    echo "  → Already in $file (skipped)"
   fi
+}
+
+install_zsh() {
+  local dir="${GFORK_ZSH_DIR:-$HOME/.config/zsh/functions}"
+  local dest="$dir/gfork.zsh"
+  local rc="$HOME/.zshrc"
+  local loader='for f in ~/.config/zsh/functions/*.zsh; source $f'
+
+  mkdir -p "$dir"
+  echo "→ Downloading gfork.zsh → $dest"
+  curl -fsSL "$BASE_URL/gfork.zsh" -o "$dest"
+
+  echo "→ Ensuring loader in $rc"
+  add_line_if_missing "$rc" "$loader"
+
+  # Load into current session if we're already in zsh
+  if [[ -n "${ZSH_VERSION:-}" ]]; then
+    # shellcheck disable=SC1090
+    source "$dest"
+  fi
+
+  echo "✓ Installed for zsh"
+  echo "  Functions dir: $dir"
+  echo "  Drop any *.zsh file there and it loads automatically."
+}
+
+install_bash() {
+  local dir="${GFORK_BASH_DIR:-$HOME/.config/bash/functions}"
+  local dest="$dir/gfork.bash"
+  local rc="$HOME/.bashrc"
+  local loader='for f in ~/.config/bash/functions/*.bash; do source "$f"; done'
+
+  mkdir -p "$dir"
+  echo "→ Downloading gfork.bash → $dest"
+  curl -fsSL "$BASE_URL/gfork.bash" -o "$dest"
+
+  echo "→ Ensuring loader in $rc"
+  add_line_if_missing "$rc" "$loader"
+
+  # Load into current session
   # shellcheck disable=SC1090
   source "$dest"
-  echo "✓ Installed for bash/zsh"
+
+  echo "✓ Installed for bash"
+  echo "  Functions dir: $dir"
+  echo "  Drop any *.bash file there and it loads automatically."
 }
 
 install_fish() {
-  local dest="${XDG_CONFIG_HOME:-$HOME/.config}/fish/functions/gfork.fish"
-  mkdir -p "$(dirname "$dest")"
-  echo "→ Downloading gfork.fish..."
+  local dir="${XDG_CONFIG_HOME:-$HOME/.config}/fish/functions"
+  local dest="$dir/gfork.fish"
+  mkdir -p "$dir"
+  echo "→ Downloading gfork.fish → $dest"
   curl -fsSL "$BASE_URL/gfork.fish" -o "$dest"
-  echo "✓ Installed for fish: $dest"
-  echo "  (functions/ directory is auto-loaded — no config change needed)"
+  echo "✓ Installed for fish"
+  echo "  fish auto-loads everything in $dir — no config change needed."
 }
 
 install_nu() {
-  local nu_dir="${XDG_CONFIG_HOME:-$HOME/.config}/nushell"
-  local dest="$nu_dir/gfork.nu"
-  local config="$nu_dir/config.nu"
-  mkdir -p "$nu_dir"
-  echo "→ Downloading gfork.nu..."
+  local dir="${XDG_CONFIG_HOME:-$HOME/.config}/nushell"
+  local dest="$dir/gfork.nu"
+  local config="$dir/config.nu"
+  local loader='source ~/.config/nushell/gfork.nu'
+  mkdir -p "$dir"
+  echo "→ Downloading gfork.nu → $dest"
   curl -fsSL "$BASE_URL/gfork.nu" -o "$dest"
-  local line="source ~/.config/nushell/gfork.nu"
-  if ! grep -qF "$line" "$config" 2>/dev/null; then
-    printf '\n# gfork — git local clone workflow\n%s\n' "$line" >> "$config"
-    echo "→ Added to $config"
-  else
-    echo "→ Already in $config (skipping)"
-  fi
+  echo "→ Ensuring loader in $config"
+  add_line_if_missing "$config" "$loader"
   echo "✓ Installed for nushell"
 }
 
@@ -65,21 +98,13 @@ echo "Detected shell: $SHELL_NAME"
 echo ""
 
 case "$SHELL_NAME" in
-  fish)
-    install_fish
-    ;;
-  nu|nushell)
-    install_nu
-    ;;
-  zsh)
-    install_bash_zsh "$HOME/.zshrc"
-    ;;
-  bash)
-    install_bash_zsh "$HOME/.bashrc"
-    ;;
+  fish)            install_fish ;;
+  nu|nushell)      install_nu   ;;
+  zsh)             install_zsh  ;;
+  bash)            install_bash ;;
   *)
-    echo "Shell '$SHELL_NAME' not auto-detected — installing for bash/zsh"
-    install_bash_zsh "$HOME/.bashrc"
+    echo "Shell '$SHELL_NAME' not recognized — defaulting to bash"
+    install_bash
     ;;
 esac
 
@@ -87,9 +112,13 @@ echo ""
 echo "─────────────────────────────────────────────"
 echo "  gfork installed ✓"
 echo ""
-echo "  Usage:"
-echo "    gfork <feature-name>           # clone current branch"
-echo "    gfork <feature-name> <branch>  # clone specific branch"
+echo "  Restart your shell or open a new tab, then:"
+echo ""
+echo "    gfork <feature-name>           # create a clone"
+echo "    gfork cd <feature-name>        # jump into it"
+echo "    gfork rm <feature-name>        # clean up when done"
+echo "    gfork ls                       # list clones"
+echo "    gfork update                   # update to latest"
 echo ""
 echo "  Docs: https://github.com/jax-agent/gfork"
 echo "─────────────────────────────────────────────"

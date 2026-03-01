@@ -20,11 +20,34 @@ curl -fsSL https://raw.githubusercontent.com/jax-agent/gfork/main/install.sh | b
 
 **Manual install by shell:**
 
-| Shell | Command |
-|-------|---------|
-| **zsh / bash** | `curl -o ~/.gfork.sh https://raw.githubusercontent.com/jax-agent/gfork/main/gfork.sh && echo 'source ~/.gfork.sh' >> ~/.zshrc` |
-| **fish** | `curl -o ~/.config/fish/functions/gfork.fish https://raw.githubusercontent.com/jax-agent/gfork/main/gfork.fish` |
-| **nushell** | `curl -o ~/.config/nushell/gfork.nu https://raw.githubusercontent.com/jax-agent/gfork/main/gfork.nu && echo 'source ~/.config/nushell/gfork.nu' >> ~/.config/nushell/config.nu` |
+**zsh** — installs to `~/.config/zsh/functions/`, adds one generic loader to `.zshrc`:
+```zsh
+mkdir -p ~/.config/zsh/functions
+curl -o ~/.config/zsh/functions/gfork.zsh \
+  https://raw.githubusercontent.com/jax-agent/gfork/main/gfork.zsh
+echo "for f in ~/.config/zsh/functions/*.zsh; source \$f" >> ~/.zshrc
+```
+
+**bash** — installs to `~/.config/bash/functions/`, adds one generic loader to `.bashrc`:
+```bash
+mkdir -p ~/.config/bash/functions
+curl -o ~/.config/bash/functions/gfork.bash \
+  https://raw.githubusercontent.com/jax-agent/gfork/main/gfork.bash
+echo 'for f in ~/.config/bash/functions/*.bash; do source "$f"; done' >> ~/.bashrc
+```
+
+**fish** — drop in `~/.config/fish/functions/`, fish auto-loads it:
+```bash
+curl -o ~/.config/fish/functions/gfork.fish \
+  https://raw.githubusercontent.com/jax-agent/gfork/main/gfork.fish
+```
+
+**nushell**:
+```bash
+curl -o ~/.config/nushell/gfork.nu \
+  https://raw.githubusercontent.com/jax-agent/gfork/main/gfork.nu
+echo 'source ~/.config/nushell/gfork.nu' >> ~/.config/nushell/config.nu
+```
 
 ---
 
@@ -226,12 +249,14 @@ claude -p "Implement Stripe billing per AGENTS.md"
 
 ## Shell Support
 
-| Shell | File | Notes |
-|-------|------|-------|
-| **bash** | `gfork.sh` | Source in `~/.bashrc` |
-| **zsh** | `gfork.sh` | Source in `~/.zshrc` |
-| **fish** | `gfork.fish` | Drop in `~/.config/fish/functions/` |
-| **nushell** | `gfork.nu` | Source in `~/.config/nushell/config.nu` |
+| Shell | File | Install location | Loader in rc file |
+|-------|------|-----------------|-------------------|
+| **zsh** | `gfork.zsh` | `~/.config/zsh/functions/gfork.zsh` | `for f in ~/.config/zsh/functions/*.zsh; source $f` |
+| **bash** | `gfork.bash` | `~/.config/bash/functions/gfork.bash` | `for f in ~/.config/bash/functions/*.bash; do source "$f"; done` |
+| **fish** | `gfork.fish` | `~/.config/fish/functions/gfork.fish` | *(auto-loaded, no change needed)* |
+| **nushell** | `gfork.nu` | `~/.config/nushell/gfork.nu` | `source ~/.config/nushell/gfork.nu` |
+
+The zsh and bash loader lines are generic — once added, any shell function you install to that directory is picked up automatically. No more touching your rc file for every new tool.
 
 ---
 
