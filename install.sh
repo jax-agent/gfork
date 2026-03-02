@@ -106,6 +106,26 @@ install_nu() {
   echo "✓ Installed for nushell"
 }
 
+
+install_man() {
+  local man_dir
+  if mkdir -p "/usr/local/share/man/man1" 2>/dev/null && [[ -w "/usr/local/share/man/man1" ]]; then
+    man_dir="/usr/local/share/man/man1"
+  else
+    man_dir="$HOME/man/man1"
+    mkdir -p "$man_dir"
+    local rc_files=("$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.profile")
+    for rc in "${rc_files[@]}"; do
+      [[ -f "$rc" ]] && add_line_if_missing "$rc" 'export MANPATH="$HOME/man:$MANPATH"'
+    done
+  fi
+  echo "-> Installing man page -> $man_dir/gfork.1"
+  curl -fsSL "$BASE_URL/gfork.1" -o "$man_dir/gfork.1"
+  command -v mandb &>/dev/null && mandb -q 2>/dev/null || true
+  command -v makewhatis &>/dev/null && makewhatis "$man_dir" 2>/dev/null || true
+  echo "+ Man page installed -- try: man gfork"
+}
+
 SHELL_NAME="$(detect_shell)"
 echo "Detected shell: $SHELL_NAME"
 echo ""
@@ -121,6 +141,8 @@ case "$SHELL_NAME" in
     ;;
 esac
 
+echo ""
+install_man
 echo ""
 echo "─────────────────────────────────────────────"
 echo "  gfork installed ✓"
