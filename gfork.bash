@@ -48,46 +48,40 @@ gfork() {
     return 1
   fi
 
-  # Resolve clone source: prefer GitHub remote over local path
-  local clone_src
-  if [[ "$use_local" -eq 1 ]]; then
-    clone_src="$repo_root"
-    echo "⎇  Cloning locally from '$repo_root' ($source_branch) → $dest"
-    git clone --local "$clone_src" "$dest" -b "$source_branch" --quiet || return 1
-  else
-    # Try to find a non-local remote (origin, upstream, github — in that order)
-    local remote_url=""
+  # Always clone locally (fast, preserves .env / dotfiles / local config)
+  # Then repoint origin to the real remote so pushes go straight to GitHub
+  echo "⎇  Cloning '$source_branch' → $dest"
+  git clone --local "$repo_root" "$dest" -b "$source_branch" --quiet || return 1
+
+  # Find the upstream remote URL from the parent repo
+  local remote_url=""
+  if [[ "$use_local" -eq 0 ]]; then
     for remote in origin upstream github; do
       local url
-      url="$(git remote get-url "$remote" 2>/dev/null)" || continue
-      # Skip file:// and local paths
+      url="$(git -C "$repo_root" remote get-url "$remote" 2>/dev/null)" || continue
+      # Skip local paths
       if [[ "$url" == /* ]] || [[ "$url" == file://* ]] || [[ "$url" == ./* ]]; then
         continue
       fi
       remote_url="$url"
       break
     done
-    # Fallback: first remote that isn't local
+    # Fallback: any non-local remote
     if [[ -z "$remote_url" ]]; then
       while IFS= read -r remote; do
         local url
-        url="$(git remote get-url "$remote" 2>/dev/null)" || continue
+        url="$(git -C "$repo_root" remote get-url "$remote" 2>/dev/null)" || continue
         if [[ "$url" != /* ]] && [[ "$url" != file://* ]] && [[ "$url" != ./* ]]; then
           remote_url="$url"
           break
         fi
-      done < <(git remote)
+      done < <(git -C "$repo_root" remote)
     fi
     if [[ -n "$remote_url" ]]; then
-      clone_src="$remote_url"
-      echo "⎇  Cloning from '$remote_url' ($source_branch) → $dest"
-      git clone "$clone_src" "$dest" -b "$source_branch" --quiet || return 1
+      git -C "$dest" remote set-url origin "$remote_url"
+      echo "   origin → $remote_url"
     else
-      # No real remote found — fall back to local clone with a warning
-      echo "⚠  No remote URL found; falling back to local clone (push may not reach GitHub)" >&2
-      clone_src="$repo_root"
-      echo "⎇  Cloning locally from '$repo_root' ($source_branch) → $dest"
-      git clone --local "$clone_src" "$dest" -b "$source_branch" --quiet || return 1
+      echo "⚠  No GitHub remote found — origin still points to local parent" >&2
     fi
   fi
   echo "✓ Clone ready: $dest"
@@ -246,7 +240,7 @@ _gfork_help() {
   echo "gfork — isolated git clone workflow"
   echo ""
   echo "Usage:"
-  echo "  gfork <feature-name> [branch] [--local]   Fork from GitHub remote (default) or local with --local"
+  echo "  gfork <feature-name> [branch] [--local]   Local clone (keeps .env/dotfiles) + origin repointed to GitHub"
   echo "  gfork cd <feature-name>         cd into an existing clone"
   echo "  gfork rm <feature-name>         Delete a clone (with confirmation)"
   echo "  gfork ls                        List clones (current repo, or all)"

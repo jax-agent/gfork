@@ -21,21 +21,28 @@ gfork \- isolated git clone workflow for parallel and AI agent development
 .
 .SH DESCRIPTION
 .B gfork
-creates an isolated clone of the current git repository inside a central
-directory (default:
+creates an isolated local clone of the current git repository inside a
+central directory (default:
 .IR ~/.gfork/ ).
 The clone is named
 .IB repo-name -- feature-name
-and by default clones from the repository's GitHub (or other non-local) remote,
-so the resulting clone's
+and is made with
+.B git clone --local
+so it is instant, space-efficient (shared objects via hardlinks), and
+preserves all untracked files that exist in the source working tree —
+including
+.BR .env ,
+.BR .envrc ,
+and other dotfiles that live outside version control.
+After cloning, gfork automatically repoints the clone's
 .B origin
-points directly at GitHub.
-This avoids the two-hop push problem that occurs when cloning a local path.
+remote to the parent repository's upstream URL (GitHub, GitLab, etc.)
+so that
+.B git push
+goes straight to the remote host — no two-hop friction.
 Use
 .B --local
-to override and clone from the local path instead (fast, offline, but pushes
-only reach the local parent — not GitHub directly).
-If no non-local remote is found, gfork falls back to a local clone with a warning.
+to skip the remote repoint and keep origin pointing at the local parent.
 .PP
 The clone is fully independent: branches, commits, and working-tree changes
 inside it cannot affect the original repository.
