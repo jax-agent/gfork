@@ -22,6 +22,17 @@ gfork() {
   esac
 
   local feature="${1:?Usage: gfork <feature-name> [source-branch]}"
+  # Parse flags
+  local use_local=0
+  local args=()
+  for arg in "$@"; do
+    case "$arg" in
+      --local) use_local=1 ;;
+      *) args+=("$arg") ;;
+    esac
+  done
+  set -- "${args[@]}"
+
   local source_branch="${2:-$(git rev-parse --abbrev-ref HEAD 2>/dev/null)}"
   local repo_root
   repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || {
@@ -37,9 +48,42 @@ gfork() {
     return 1
   fi
 
-  mkdir -p "$base"
-  echo "⎇  Cloning '$source_branch' → $dest"
-  git clone --local "$repo_root" "$dest" -b "$source_branch" --quiet || return 1
+  # Resolve clone source: prefer GitHub remote over local path
+  local clone_src
+  if [[ "$use_local" -eq 1 ]]; then
+    clone_src="$repo_root"
+    echo "⎇  Cloning locally from '$repo_root' ($source_branch) → $dest"
+    git clone --local "$clone_src" "$dest" -b "$source_branch" --quiet || return 1
+  else
+    local remote_url=""
+    for remote in origin upstream github; do
+      local url
+      url="$(git remote get-url "$remote" 2>/dev/null)" || continue
+      if [[ "$url" == /* ]] || [[ "$url" == file://* ]] || [[ "$url" == ./* ]]; then
+        continue
+      fi
+      remote_url="$url"
+      break
+    done
+    if [[ -z "$remote_url" ]]; then
+      while IFS= read -r remote; do
+        local url
+        url="$(git remote get-url "$remote" 2>/dev/null)" || continue
+        if [[ "$url" != /* ]] && [[ "$url" != file://* ]] && [[ "$url" != ./* ]]; then
+          remote_url="$url"
+          break
+        fi
+      done < <(git remote)
+    fi
+    if [[ -n "$remote_url" ]]; then
+      echo "⎇  Cloning from '$remote_url' ($source_branch) → $dest"
+      git clone "$remote_url" "$dest" -b "$source_branch" --quiet || return 1
+    else
+      echo "⚠  No remote URL found; falling back to local clone (push may not reach GitHub)" >&2
+      echo "⎇  Cloning locally from '$repo_root' ($source_branch) → $dest"
+      git clone --local "$repo_root" "$dest" -b "$source_branch" --quiet || return 1
+    fi
+  fi
   echo "✓ Clone ready: $dest"
   echo ""
   echo "  gfork cd $feature"
@@ -192,7 +236,7 @@ _gfork_help() {
   echo "gfork — isolated git clone workflow"
   echo ""
   echo "Usage:"
-  echo "  gfork <feature-name> [branch]   Create a clone (default: current branch)"
+  echo "  gfork <feature-name> [branch] [--local]   Fork from GitHub remote (default) or local with --local"
   echo "  gfork cd <feature-name>         cd into an existing clone"
   echo "  gfork rm <feature-name>         Delete a clone (with confirmation)"
   echo "  gfork ls                        List clones (current repo, or all)"
