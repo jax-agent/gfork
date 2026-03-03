@@ -6,7 +6,8 @@ gfork \- isolated git clone workflow for parallel and AI agent development
 .SH SYNOPSIS
 .B gfork
 .I feature-name
-.RI [ branch ]
+.RB [ -b
+.IR branch ]
 .RB [ --local ]
 .br
 .B gfork cd
@@ -59,13 +60,18 @@ without stepping on the others.
 .
 .SH SUBCOMMANDS
 .TP
-.BI "gfork " feature-name " [" branch ]
+.BI "gfork " feature-name " [-b " branch "] [--local]"
 Create a new clone.
 .I feature-name
 becomes the suffix of the clone directory
 .RI ( repo -- feature-name ).
-.I branch
-is the branch to clone from; defaults to the current branch when omitted.
+.BI -b " branch"
+(or
+.BR --branch )
+is the source branch to clone from; defaults to the current branch.
+The positional form
+.RI ( "gfork feature branch" )
+is also accepted.
 Exits non-zero if the destination directory already exists.
 .
 .TP

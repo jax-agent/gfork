@@ -35,18 +35,28 @@ function gfork --description "Isolated git clone workflow for parallel developme
     # Default: create a clone
     # Parse flags
     set use_local 0
+    set branch_flag ""
     set parsed_args
+    set skip_next 0
     for arg in $argv
-        if test "$arg" = "--local"
-            set use_local 1
-        else
-            set parsed_args $parsed_args $arg
+        if test $skip_next -eq 1
+            set branch_flag $arg
+            set skip_next 0
+            continue
+        end
+        switch $arg
+            case "--local"
+                set use_local 1
+            case "-b" "--branch"
+                set skip_next 1
+            case "*"
+                set parsed_args $parsed_args $arg
         end
     end
     set argv $parsed_args
 
     if test (count $argv) -lt 1
-        echo "Usage: gfork <feature-name> [source-branch] [--local]"
+        echo "Usage: gfork <feature-name> [-b branch] [--local]"
         return 1
     end
 
@@ -280,7 +290,7 @@ function _gfork_help
     echo "gfork — isolated git clone workflow"
     echo ""
     echo "Usage:"
-    echo "  gfork <feature-name> [branch] [--local]   Local clone (keeps .env/dotfiles) + origin repointed to GitHub"
+    echo "  gfork <feature-name> [-b branch] [--local]   Local clone (keeps .env/dotfiles) + origin repointed to GitHub"
     echo "  gfork cd <feature-name>         cd into an existing clone"
     echo "  gfork rm <feature-name>         Delete a clone (with confirmation)"
     echo "  gfork ls                        List clones (current repo, or all)"

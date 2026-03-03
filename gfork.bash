@@ -23,17 +23,25 @@ gfork() {
 
   # Parse flags
   local use_local=0
+  local branch_flag=""
   local args=()
+  local skip_next=0
   for arg in "$@"; do
+    if [[ "$skip_next" -eq 1 ]]; then
+      branch_flag="$arg"
+      skip_next=0
+      continue
+    fi
     case "$arg" in
       --local) use_local=1 ;;
+      -b|--branch) skip_next=1 ;;
       *) args+=("$arg") ;;
     esac
   done
   set -- "${args[@]}"
 
-  local feature="${1:?Usage: gfork <feature-name> [source-branch] [--local]}"
-  local source_branch="${2:-$(git rev-parse --abbrev-ref HEAD 2>/dev/null)}"
+  local feature="${1:?Usage: gfork <feature-name> [-b branch] [--local]}"
+  local source_branch="${branch_flag:-${2:-$(git rev-parse --abbrev-ref HEAD 2>/dev/null)}}"
   local repo_root
   repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || {
     echo "✗ Not inside a git repository." >&2; return 1
@@ -240,7 +248,7 @@ _gfork_help() {
   echo "gfork — isolated git clone workflow"
   echo ""
   echo "Usage:"
-  echo "  gfork <feature-name> [branch] [--local]   Local clone (keeps .env/dotfiles) + origin repointed to GitHub"
+  echo "  gfork <feature-name> [-b branch] [--local]   Local clone (keeps .env/dotfiles) + origin repointed to GitHub"
   echo "  gfork cd <feature-name>         cd into an existing clone"
   echo "  gfork rm <feature-name>         Delete a clone (with confirmation)"
   echo "  gfork ls                        List clones (current repo, or all)"
