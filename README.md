@@ -281,3 +281,17 @@ man gfork
 ## License
 
 MIT — use freely, contributions welcome.
+
+---
+
+## Claude Code Plugin
+
+The gfork plugin adds `/gfork`, `/gfork-agent`, and `/gfork-parallel` slash commands directly to Claude Code.
+
+```
+/gfork fix-payments                    # create an isolated clone
+/gfork-agent fix-payments <task>       # clone + launch a Claude Code agent
+/gfork-parallel                        # multiple clones, multiple agents in parallel
+```
+
+📖 **[Full plugin documentation →](docs/claude-code-plugin.md)**

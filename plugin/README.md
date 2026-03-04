@@ -4,43 +4,32 @@ Claude Code slash commands for the [gfork](https://github.com/jax-agent/gfork) i
 
 ## Commands
 
-### `/gfork <feature-name>`
-Creates an isolated gfork clone for a feature. Use when you want a safe sandbox to experiment in — gfork clones are disposable and can't corrupt your main repo.
+| Command | Description |
+|---|---|
+| `/gfork <feature-name>` | Create an isolated clone of the current repo for a feature |
+| `/gfork-agent <feature-name> <task>` | Create a clone and launch a Claude Code agent inside it |
+| `/gfork-parallel` | Launch multiple clones with parallel agents simultaneously |
 
-```
+## Quick start
+
+```bash
+# Inside a Claude Code session, in any repo:
+
 /gfork fix-payments
-/gfork auth-refactor
-```
+# → ~/.gfork/my-app--fix-payments/ ready to use
 
-### `/gfork-agent <feature-name> <task>`
-Creates a gfork clone **and** launches a Claude Code sub-agent inside it in a tmux session. The agent works autonomously on the task in its own isolated environment.
+/gfork-agent fix-payments Fix the Stripe webhook handler to retry on 5xx errors
+# → agent running in tmux session "fix-payments"
 
-```
-/gfork-agent fix-payments "Fix the Stripe webhook handler to retry on 5xx errors"
-/gfork-agent auth-refactor "Refactor the auth module to use JWT instead of sessions"
-```
-
-### `/gfork-parallel`
-Launches multiple gfork clones with parallel agents, each working on a different task simultaneously. Best for large features you want to parallelize across independent sub-tasks.
-
-```
 /gfork-parallel
-```
-Then describe your tasks when prompted.
-
-## Install
-
-```bash
-claude plugin install github.com/jax-agent/gfork/plugin
-```
-
-Or manually:
-```bash
-cp -r plugin/commands ~/.claude/plugins/gfork/
+# → describe your tasks, agents spin up in parallel
 ```
 
 ## Requirements
 
-- [gfork](https://github.com/jax-agent/gfork) installed: `curl -fsSL https://raw.githubusercontent.com/jax-agent/gfork/main/install.sh | bash`
-- [tmux](https://github.com/tmux/tmux) for agent sessions
-- Claude Code with root bypass for agent mode: `CLAUDE_CODE_ALLOW_ROOT=1`
+- [gfork](https://github.com/jax-agent/gfork) installed
+- [tmux](https://github.com/tmux/tmux) installed (for `/gfork-agent` and `/gfork-parallel`)
+
+## Full documentation
+
+📖 [docs/claude-code-plugin.md](../docs/claude-code-plugin.md) — install instructions, detailed command reference, examples, and troubleshooting.
