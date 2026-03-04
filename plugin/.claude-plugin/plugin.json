@@ -1,0 +1,9 @@
+{
+  "name": "gfork",
+  "version": "1.0.0",
+  "description": "Slash commands for the gfork isolated clone workflow. Spin up sandboxed clones for features, launch Claude Code agents in isolation, and run parallel agents across multiple clones.",
+  "author": {
+    "name": "Jax",
+    "email": "mrjaxemail@proton.me"
+  }
+}
