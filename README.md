@@ -57,35 +57,51 @@ echo 'source ~/.config/nushell/gfork.nu' >> ~/.config/nushell/config.nu
 ## Usage
 
 ```bash
-gfork <feature-name>              # clone current branch
-gfork <feature-name> <branch>     # clone a specific branch
-gfork cd <feature-name>           # cd into an existing clone
-gfork rm <feature-name>           # delete a clone (with confirmation)
-gfork ls                          # list all clones for this repo
+gfork go <feature-name> [-b branch]   # clone + create branch + cd in (one shot)
+gfork <feature-name> [-b branch]      # clone only
+gfork cd <feature-name>               # cd into an existing clone
+gfork rm <feature-name>               # delete a clone (with confirmation)
+gfork ls                              # list all clones for this repo
 ```
 
 > **Note (nushell):** cd is a built-in, so the commands are `gfork-cd`, `gfork-rm`, and `gfork-ls` instead.
 
-**Output:**
+**`gfork go` output:**
 ```
-⎇  Cloning 'main' → /projects/antmachine--memory-system
-✓ Clone ready: /projects/antmachine--memory-system
-
-  cd antmachine--memory-system
-  # When done: gfork rm memory-system
+⎇  Copying 'main' → ~/.gfork/my-app--big-feature (including gitignored files)
+✓ Clone ready: ~/.gfork/my-app--big-feature
+   branch → feat/big-feature
+→ /root/.gfork/my-app--big-feature
 ```
 
 ---
 
 ## The Workflow
 
+### One-shot (recommended)
+
+```bash
+cd ~/projects/my-app
+gfork go big-feature -b main
+# → you're now in ~/.gfork/my-app--big-feature on branch feat/big-feature
+# → .env, .env.local, and all gitignored files are present
+
+git add . && git commit -m "implement thing"
+git push origin feat/big-feature
+cd ~/projects/my-app && git pull
+gfork rm big-feature
+```
+
+### Manual steps
+
 ```bash
 # 1. You're in your real repo on main
 cd ~/projects/my-app
-gfork big-feature                 # creates ~/.gfork/my-app--big-feature
+gfork big-feature -b main         # creates ~/.gfork/my-app--big-feature
 
-# 2. Jump into the clone in one command
+# 2. Jump into the clone
 gfork cd big-feature              # ← drops you straight in
+git checkout -b feat/big-feature
 
 # 3. Agents create branches freely inside the clone
 git checkout -b auth-system      # agent 1
@@ -125,10 +141,9 @@ Claude Code works great inside a gfork clone. Each agent session gets full branc
 
 ```bash
 cd ~/projects/my-app
-gfork refactor-v2
-cd ../my-app--refactor-v2
+gfork go refactor-v2 -b main
+# → cloned, on feat/refactor-v2, .env files present, already cd'd in
 
-# Run Claude Code inside the clone
 CLAUDE_CODE_ALLOW_ROOT=1 claude -p "
   Refactor the authentication module to use JWT.
   Create a feature branch called 'jwt-auth', do all your work there,
@@ -242,14 +257,17 @@ claude -p "Implement Stripe billing per AGENTS.md"
 | Isolated `.git` | ✓ | ✗ shared |
 | Same branch name in two places | ✓ | ✗ |
 | AI agents can't corrupt real repo | ✓ | ✗ |
+| `.env` and gitignored files copied | ✓ | ✗ |
+| Ready to run immediately | ✓ | manual setup |
 | Multiple agents, zero coordination | ✓ | limited |
-| Disk usage | low (hardlinks) | lower |
 | Clean lifecycle | clone → work → delete | manual prune |
 | Works with all tools | ✓ | some tools break |
 
-## Why `git clone --local` over `cp -r`?
+## Why `rsync` instead of `git clone`?
 
-`git clone --local` uses hardlinks for git objects — near-instant even on large repos, minimal extra disk usage. The clone knows its origin so `git push`/`git pull` just work.
+`git clone --local` only copies files tracked by git. Gitignored files — `.env`, `.env.local`, local config overrides — are left behind. Agents that depend on those files to start the app fail immediately.
+
+`gfork` uses `rsync -a` to copy the entire working tree verbatim, including gitignored files. The `.git` directory comes along too so `git push`/`git pull` just work. Agents get a fully runnable sandbox with zero manual setup.
 
 ---
 

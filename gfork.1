@@ -1,14 +1,18 @@
-.TH GFORK 1 "2026-03-01" "gfork" "User Commands"
+.TH GFORK 1 "2026-03-05" "gfork" "User Commands"
 .
 .SH NAME
 gfork \- isolated git clone workflow for parallel and AI agent development
 .
 .SH SYNOPSIS
+.B gfork go
+.I feature-name
+.RB [ -b
+.IR branch ]
+.br
 .B gfork
 .I feature-name
 .RB [ -b
 .IR branch ]
-.RB [ --local ]
 .br
 .B gfork cd
 .I feature-name
@@ -22,28 +26,33 @@ gfork \- isolated git clone workflow for parallel and AI agent development
 .
 .SH DESCRIPTION
 .B gfork
-creates an isolated local clone of the current git repository inside a
+creates an isolated local copy of the current git repository inside a
 central directory (default:
 .IR ~/.gfork/ ).
 The clone is named
-.IB repo-name -- feature-name
-and is made with
+.IB repo-name -- feature-name .
+.PP
+Unlike
 .B git clone --local
-so it is instant, space-efficient (shared objects via hardlinks), and
-preserves all untracked files that exist in the source working tree —
-including
+(which only copies tracked files),
+.B gfork
+uses
+.B rsync -a
+to copy the entire working tree — including
 .BR .env ,
 .BR .envrc ,
-and other dotfiles that live outside version control.
-After cloning, gfork automatically repoints the clone's
+.BR .env.local ,
+and any other gitignored files agents need to actually run the project.
+The
+.I .git
+directory is copied in full, giving the clone a complete and independent
+git history.
+After copying, gfork repoints the clone's
 .B origin
 remote to the parent repository's upstream URL (GitHub, GitLab, etc.)
 so that
 .B git push
-goes straight to the remote host — no two-hop friction.
-Use
-.B --local
-to skip the remote repoint and keep origin pointing at the local parent.
+goes straight to the remote host.
 .PP
 The clone is fully independent: branches, commits, and working-tree changes
 inside it cannot affect the original repository.
@@ -60,8 +69,18 @@ without stepping on the others.
 .
 .SH SUBCOMMANDS
 .TP
-.BI "gfork " feature-name " [-b " branch "] [--local]"
-Create a new clone.
+.BI "gfork go " feature-name " [-b " branch ]
+The fast-path command.
+Creates a clone, checks out a new working branch
+.RI ( feat/ feature-name ),
+and changes the shell's working directory into the clone — all in one shot.
+.BI -b " branch"
+controls which source branch is copied (defaults to the current branch).
+Use this when you want to start working immediately without extra steps.
+.
+.TP
+.BI "gfork " feature-name " [-b " branch ]
+Create a new clone without changing directory or creating a branch.
 .I feature-name
 becomes the suffix of the clone directory
 .RI ( repo -- feature-name ).
@@ -143,10 +162,6 @@ Prints the short commit SHA of the version pulled.
 Requires
 .BR curl (1)
 and an active internet connection.
-The version file is written on every fresh install and successful update.
-A shell reload
-.RB ( "source ~/.config/bash/functions/gfork.bash" ", " "exec fish" ", etc.")
-is needed to pick up any new subcommands.
 .
 .TP
 .BR "gfork help" ", " "gfork --help" ", " "gfork -h"
@@ -171,22 +186,36 @@ also exits
 when the user aborts at the confirmation prompt.
 .
 .SH EXAMPLES
-.SS Basic workflow
+.SS One-shot workflow with gfork go
 .EX
 # Inside ~/projects/my-app (on branch main)
-gfork big-feature          # creates ~/.gfork/my-app--big-feature
-gfork cd big-feature       # jump in
-git checkout -b my-branch  # work freely
-git push origin my-branch
+gfork go big-feature -b main
+# → clones main, creates branch feat/big-feature, cd's you in
+
+# Work freely — you're already on the right branch in the right dir
+git add . && git commit -m "implement thing"
+git push origin feat/big-feature
+
 cd ~/projects/my-app
 git pull
-gfork rm big-feature       # clean up
+gfork rm big-feature
+.EE
+.
+.SS Manual workflow
+.EX
+gfork big-feature -b main     # creates ~/.gfork/my-app--big-feature
+gfork cd big-feature          # jump in
+git checkout -b feat/big      # create working branch
+git push origin feat/big
+cd ~/projects/my-app
+git pull
+gfork rm big-feature
 .EE
 .
 .SS Clone a specific branch
 .EX
-gfork hotfix-login release/v2
-gfork cd hotfix-login
+gfork go hotfix-login -b release/v2
+# drops you into ~/.gfork/my-app--hotfix-login on branch feat/hotfix-login
 .EE
 .
 .SS List all clones for the current repo
@@ -198,7 +227,7 @@ gfork ls
 .
 .SS Parallel AI agents
 .EX
-gfork parallel-sprint
+gfork parallel-sprint -b main
 gfork cd parallel-sprint
 
 CLAUDE_CODE_ALLOW_ROOT=1 claude -p "Build the auth module on branch auth" &
@@ -214,8 +243,7 @@ gfork rm parallel-sprint
 .
 .SS Per-agent instruction file
 .EX
-gfork payment-feature
-gfork cd payment-feature
+gfork go payment-feature
 cat > AGENTS.md << 'EOF'
 Work in an isolated clone. Create one branch per logical unit,
 merge back to main when tests pass, never push to origin.
@@ -278,12 +306,23 @@ This means the same branch cannot be checked out in two places at once,
 and AI agents writing conflicting refs or index entries can corrupt the
 original repo.
 .B gfork
-uses
-.B git clone --local
-which creates a fully independent
+creates a fully independent
 .I .git
-directory while still using hardlinks for git object storage, giving
-isolation without significant disk overhead.
+directory, giving agents complete isolation.
+.
+.SS Why rsync instead of git clone?
+.B git clone --local
+only copies files tracked by git.
+Gitignored files —
+.BR .env ,
+.BR .env.local ,
+local config overrides, secrets — are left behind.
+Agents that depend on those files to start the app fail immediately.
+.B gfork
+uses
+.B "rsync -a"
+to copy the entire working tree verbatim.
+Agents get a fully runnable sandbox on first use, no manual setup required.
 .
 .SS Nushell subcommand names
 Nushell does not support subcommands inside a single
@@ -303,8 +342,8 @@ and
 .SH SHELL SUPPORT
 .TS
 l l.
-bash	gfork.sh
-zsh	gfork.sh
+bash	gfork.bash
+zsh	gfork.zsh
 fish	gfork.fish
 nushell	gfork.nu
 .TE
@@ -327,17 +366,11 @@ Default clone storage directory.
 All clones from all repos live here, named
 .IB repo-name -- feature-name .
 .TP
-.I ~/.config/zsh/functions/gfork.zsh
-Zsh install location. Any
-.I *.zsh
-file dropped here is loaded automatically when the generic loader line is present in
-.IR ~/.zshrc .
-.TP
 .I ~/.config/bash/functions/gfork.bash
-Bash install location. Any
-.I *.bash
-file dropped here is loaded automatically when the generic loader line is present in
-.IR ~/.bashrc .
+Bash install location.
+.TP
+.I ~/.config/zsh/functions/gfork.zsh
+Zsh install location.
 .TP
 .I ~/.config/fish/functions/gfork.fish
 Fish auto-load location (no config change needed).
@@ -358,4 +391,5 @@ MIT License. See https://github.com/jax-agent/gfork for full text.
 .SH SEE ALSO
 .BR git (1),
 .BR git-clone (1),
-.BR git-worktree (1)
+.BR git-worktree (1),
+.BR rsync (1)
