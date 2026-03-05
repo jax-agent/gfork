@@ -56,10 +56,19 @@ gfork() {
     return 1
   fi
 
-  # Always clone locally (fast, preserves .env / dotfiles / local config)
-  # Then repoint origin to the real remote so pushes go straight to GitHub
-  echo "⎇  Cloning '$source_branch' → $dest"
-  git clone --local "$repo_root" "$dest" -b "$source_branch" --quiet || return 1
+  # Full directory copy — preserves .env, dotfiles, gitignored local config
+  # git clone only copies tracked files; rsync gives agents a ready-to-run sandbox
+  echo "⎇  Copying '$source_branch' → $dest (including gitignored files)"
+  rsync -a --quiet "$repo_root/" "$dest/" || return 1
+
+  # Checkout the requested branch (rsync copies current HEAD state)
+  local current_branch
+  current_branch="$(git -C "$dest" rev-parse --abbrev-ref HEAD 2>/dev/null)"
+  if [[ "$current_branch" != "$source_branch" ]]; then
+    git -C "$dest" checkout "$source_branch" --quiet 2>/dev/null || {
+      echo "⚠  Branch '$source_branch' not found — staying on '$current_branch'" >&2
+    }
+  fi
 
   # Find the upstream remote URL from the parent repo
   local remote_url=""
@@ -248,7 +257,7 @@ _gfork_help() {
   echo "gfork — isolated git clone workflow"
   echo ""
   echo "Usage:"
-  echo "  gfork <feature-name> [-b branch] [--local]   Local clone (keeps .env/dotfiles) + origin repointed to GitHub"
+  echo "  gfork <feature-name> [-b branch]   Full copy (tracked + gitignored + .env) + origin repointed to GitHub"
   echo "  gfork cd <feature-name>         cd into an existing clone"
   echo "  gfork rm <feature-name>         Delete a clone (with confirmation)"
   echo "  gfork ls                        List clones (current repo, or all)"
