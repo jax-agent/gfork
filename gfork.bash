@@ -18,6 +18,7 @@ gfork() {
     rm|remove|clean) _gfork_rm "${2:?Usage: gfork rm <feature-name>}"; return ;;
     ls|list)         _gfork_ls;      return ;;
     update|upgrade)  shift; _gfork_update "$@";  return ;;
+    go)              shift; _gfork_go "$@";       return ;;
     -h|--help|help)  _gfork_help;    return ;;
   esac
 
@@ -253,16 +254,56 @@ _gfork_update() {
   echo "  Reloaded in current shell."
 }
 
+_gfork_go() {
+  # Parse flags (same as main gfork)
+  local branch_flag="" args=() skip_next=0
+  for arg in "$@"; do
+    if [[ "$skip_next" -eq 1 ]]; then branch_flag="$arg"; skip_next=0; continue; fi
+    case "$arg" in
+      -b|--branch) skip_next=1 ;;
+      *) args+=("$arg") ;;
+    esac
+  done
+  set -- "${args[@]}"
+
+  local feature="${1:?Usage: gfork go <feature-name> [-b branch]}"
+
+  # 1. Clone (reuse main gfork logic)
+  local clone_args=("$feature")
+  [[ -n "$branch_flag" ]] && clone_args+=("-b" "$branch_flag")
+  gfork "${clone_args[@]}" || return 1
+
+  # 2. Get destination path
+  local dest
+  dest="$(_gfork_dest "$feature")" || return 1
+
+  # 3. Create a working branch feat/<name>
+  local work_branch="feat/${feature}"
+  git -C "$dest" checkout -b "$work_branch" --quiet 2>/dev/null || {
+    # Branch name may be invalid — fall back to feature name as-is
+    work_branch="$feature"
+    git -C "$dest" checkout -b "$work_branch" --quiet 2>/dev/null || {
+      echo "⚠  Could not create branch '$work_branch' — staying on $(git -C "$dest" rev-parse --abbrev-ref HEAD)" >&2
+    }
+  }
+  echo "   branch → $(git -C "$dest" rev-parse --abbrev-ref HEAD)"
+
+  # 4. CD into clone (affects current shell because this is a bash function)
+  echo "→ $dest"
+  cd "$dest" || return 1
+}
+
 _gfork_help() {
   echo "gfork — isolated git clone workflow"
   echo ""
   echo "Usage:"
-  echo "  gfork <feature-name> [-b branch]   Full copy (tracked + gitignored + .env) + origin repointed to GitHub"
-  echo "  gfork cd <feature-name>         cd into an existing clone"
-  echo "  gfork rm <feature-name>         Delete a clone (with confirmation)"
-  echo "  gfork ls                        List clones (current repo, or all)"
-  echo "  gfork update                    Update gfork to the latest version"
-  echo "  gfork update --force            Reinstall even if already up to date"
+  echo "  gfork go <feature-name> [-b branch]  Clone + create feat/<name> branch + cd in (one shot)"
+  echo "  gfork <feature-name> [-b branch]     Clone only (full copy incl. .env)"
+  echo "  gfork cd <feature-name>              cd into an existing clone"
+  echo "  gfork rm <feature-name>              Delete a clone (with confirmation)"
+  echo "  gfork ls                             List clones (current repo, or all)"
+  echo "  gfork update                         Update gfork to the latest version"
+  echo "  gfork update --force                 Reinstall even if already up to date"
   echo ""
   echo "Clones are stored in: ${GFORK_DIR:-$HOME/.gfork}"
   echo "Override with: export GFORK_DIR=/your/path"
