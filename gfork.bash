@@ -250,6 +250,21 @@ _gfork_update() {
   # shellcheck disable=SC1090
   source "$dest"
 
+  # Update man page if a man1 dir is writable
+  local man_dirs=(/usr/local/share/man/man1 /usr/share/man/man1 "$HOME/.local/share/man/man1")
+  local man_installed=0
+  for man_dir in "${man_dirs[@]}"; do
+    if [[ -d "$man_dir" && -w "$man_dir" ]] || mkdir -p "$man_dir" 2>/dev/null; then
+      if curl -fsSL "$base_url/gfork.1" -o "$man_dir/gfork.1" 2>/dev/null; then
+        mandb -q 2>/dev/null || true
+        echo "   man page → $man_dir/gfork.1"
+        man_installed=1
+        break
+      fi
+    fi
+  done
+  [[ $man_installed -eq 0 ]] && echo "   man page — skipped (no writable man1 dir; run: sudo curl -fsSL $base_url/gfork.1 -o /usr/local/share/man/man1/gfork.1)"
+
   [[ -n "$latest_sha" ]] && echo "✓ Updated to $latest_sha" || echo "✓ Updated to latest"
   echo "  Reloaded in current shell."
 }
